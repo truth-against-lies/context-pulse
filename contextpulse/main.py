@@ -1702,6 +1702,117 @@ def pretty_log(repo_path=".", count=20):
     console.print()
 
 
+def trends_report(repo_path=".", weeks=8):
+    """
+    pulse trends: מראה מגמות לאורך זמן — כמה קומיטים בכל שבוע.
+    עוזר לראות אם אתה משתפר, עקבי, או מאט.
+    """
+    repo = Repo(repo_path)
+    days = weeks * 7
+    since_date = datetime.now().timestamp() - (days * 24 * 60 * 60)
+
+    # אוספים קומיטים לכל שבוע
+    # isocalendar() = מחזיר (שנה, שבוע, יום) לפי תקן ISO
+    week_counts = Counter()
+    week_files = Counter()
+    week_insertions = Counter()
+
+    for commit in repo.iter_commits():
+        if commit.committed_date < since_date:
+            break
+        commit_dt = datetime.fromtimestamp(commit.committed_date)
+        year, week_num, _ = commit_dt.isocalendar()
+        key = f"{year}-W{week_num:02d}"
+        week_counts[key] += 1
+        week_files[key] += len(commit.stats.files)
+        week_insertions[key] += commit.stats.total.get("insertions", 0)
+
+    if not week_counts:
+        console.print(Panel("No commits found.", style="yellow"))
+        return
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[{th('title')}]Trends[/{th('title')}] — last {weeks} weeks",
+            border_style=th("border"),
+        )
+    )
+
+    # ממיינים לפי שבוע
+    sorted_weeks = sorted(week_counts.keys())
+    max_count = max(week_counts.values())
+
+    # גרף שבועי
+    console.print()
+    console.print("[bold]Commits per Week[/bold]")
+
+    prev_count = None
+    for week_key in sorted_weeks:
+        count = week_counts[week_key]
+        bar_len = round(count / max_count * 30)
+        bar = "█" * bar_len
+
+        # חץ מגמה
+        if prev_count is not None:
+            if count > prev_count:
+                trend = f"[green]↑ +{count - prev_count}[/green]"
+            elif count < prev_count:
+                trend = f"[red]↓ {count - prev_count}[/red]"
+            else:
+                trend = "[dim]=[/dim]"
+        else:
+            trend = ""
+
+        color = th("positive") if count >= max_count * 0.7 else (
+            th("accent") if count >= max_count * 0.4 else th("neutral")
+        )
+        console.print(
+            f"  {week_key}  [{color}]{bar}[/{color}] {count}  {trend}"
+        )
+        prev_count = count
+
+    # סטטיסטיקות
+    counts = list(week_counts.values())
+    avg = round(sum(counts) / len(counts), 1)
+    best_week = max(week_counts, key=week_counts.get)
+    worst_week = min(week_counts, key=week_counts.get)
+
+    console.print()
+    console.print(f"  [bold]Average:[/bold] {avg} commits/week")
+    console.print(
+        f"  [bold]Best week:[/bold] {best_week} "
+        f"({week_counts[best_week]} commits)"
+    )
+    console.print(
+        f"  [bold]Slowest:[/bold] {worst_week} "
+        f"({week_counts[worst_week]} commits)"
+    )
+
+    # מגמה כללית — ממוצע חצי ראשון vs חצי שני
+    half = len(counts) // 2
+    if half > 0:
+        first_half_avg = sum(counts[:half]) / half
+        second_half_avg = sum(counts[half:]) / len(counts[half:])
+        if second_half_avg > first_half_avg * 1.1:
+            console.print(
+                f"\n  [{th('positive')}]Trend: Accelerating! "
+                f"You're getting more productive.[/{th('positive')}]"
+            )
+        elif second_half_avg < first_half_avg * 0.9:
+            console.print(
+                f"\n  [{th('negative')}]Trend: Slowing down. "
+                f"Recent weeks are less active.[/{th('negative')}]"
+            )
+        else:
+            console.print(
+                f"\n  [{th('accent')}]Trend: Steady pace. "
+                f"Consistent work![/{th('accent')}]"
+            )
+
+    console.print()
+
+
 def show_help():
     """
     pulse help: מדריך יפה עם כל הפקודות — הרבה יותר נחמד מ---help.
@@ -1724,6 +1835,7 @@ def show_help():
     cmds.add_row("pulse hours", "Work patterns (hours & days)")
     cmds.add_row("pulse vs", "Compare current vs previous period")
     cmds.add_row("pulse streak", "Commit streak + calendar")
+    cmds.add_row("pulse trends", "Weekly trends over time")
     cmds.add_row("pulse log", "Pretty git log with icons")
     cmds.add_row("pulse multi PATH", "Scan all repos in a directory")
     cmds.add_row("pulse init", "Create .pulserc config file")
@@ -1911,6 +2023,7 @@ SHORTCUTS = {
     "init": None,        # פקודה מיוחדת — הגדרות לפרויקט
     "streak": None,      # פקודה מיוחדת — רצף ימים
     "log": None,         # פקודה מיוחדת — git log יפה
+    "trends": None,      # פקודה מיוחדת — מגמות לאורך זמן
     "help": None,        # פקודה מיוחדת — מדריך
 }
 
@@ -1990,6 +2103,17 @@ def expand_shortcuts(argv):
         elif len(argv) > 1:
             repo = argv[1]
         pretty_log(repo, count)
+        return None
+
+    if first == "trends":
+        repo = "."
+        weeks = 8
+        if len(argv) > 1 and argv[1].isdigit():
+            weeks = int(argv[1])
+            repo = argv[2] if len(argv) > 2 else "."
+        elif len(argv) > 1:
+            repo = argv[1]
+        trends_report(repo, weeks)
         return None
 
     if first == "help":
@@ -2089,7 +2213,7 @@ def main():
     parser.add_argument(
         "--version", "-v",
         action="version",
-        version="ContextPulse 0.6.0",
+        version="ContextPulse 0.7.0",
     )
     parser.add_argument(
         "--html",

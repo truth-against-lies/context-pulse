@@ -1,21 +1,43 @@
-# ContextPulse
+<p align="center">
+  <pre>
+   ____            _            _   ____        _
+  / ___|___  _ __ | |_ _____  _| |_|  _ \ _   _| |___  ___
+ | |   / _ \| '_ \| __/ _ \ \/ / __| |_) | | | | / __|/ _ \
+ | |__| (_) | | | | ||  __/>  <| |_|  __/| |_| | \__ \  __/
+  \____\___/|_| |_|\__\___/_/\_\\__|_|    \__,_|_|___/\___|
+  </pre>
+</p>
 
-Turn your Git history into a human story.
+<h3 align="center">Turn your Git history into a human story</h3>
 
-ContextPulse is a CLI tool that analyzes your Git repository and generates beautiful, human-readable activity reports. Instead of reading through dozens of raw commits, get a clear summary of what happened, when, and why.
+<p align="center">
+  <a href="https://pypi.org/project/contextpulse/"><img src="https://img.shields.io/pypi/v/contextpulse?color=blue&label=PyPI" alt="PyPI"></a>
+  <a href="https://pypi.org/project/contextpulse/"><img src="https://img.shields.io/pypi/pyversions/contextpulse" alt="Python"></a>
+  <a href="https://github.com/truth-against-lies/context-pulse/blob/main/LICENSE"><img src="https://img.shields.io/github/license/truth-against-lies/context-pulse" alt="License"></a>
+</p>
 
-## Features
+---
 
-- **Smart Summary** — Automatically detects what you've been working on (bug fixes, new features, improvements)
-- **Category Breakdown** — Groups changes by type (HTML, Python, JavaScript, Config, etc.) with colors
-- **Hot Files** — Shows which files changed the most (your "hot spots")
-- **Daily Activity Chart** — Visual bar chart showing your most active days
-- **Directory Breakdown** — See which folders got the most attention (great for monorepos)
-- **Multiple Time Ranges** — Today, this week, this month, custom days, or since a specific date
-- **Author Filtering** — Focus on one contributor's work
-- **Branch Comparison** — Compare what changed between two branches
-- **Interactive Mode** — Menu-driven interface, no flags to memorize
-- **Export** — Save reports as Markdown or JSON
+**ContextPulse** is the only CLI tool that combines Git analytics, smart summaries, team insights, work patterns, and beautiful reports — all in one package. No more juggling 5 different tools.
+
+## Why ContextPulse?
+
+| Feature | git-standup | git-quick-stats | onefetch | **ContextPulse** |
+|---------|:-----------:|:---------------:|:--------:|:----------------:|
+| Smart text summary | | | | **Yes** |
+| Category breakdown | | Yes | | **Yes** |
+| Hot files detection | | | | **Yes** |
+| Work patterns (hours/days) | | | | **Yes** |
+| Period comparison (vs) | | | | **Yes** |
+| Commit streak tracker | | | | **Yes** |
+| Team report | | Partial | | **Yes** |
+| Multi-repo scanning | Partial | | | **Yes** |
+| HTML export | | | | **Yes** |
+| Hebrew support | | | | **Yes** |
+| Color themes | | | Partial | **Yes** |
+| Interactive mode | | Yes | | **Yes** |
+| Pretty git log | | | | **Yes** |
+| Project health scan | | | Partial | **Yes** |
 
 ## Installation
 
@@ -23,65 +45,82 @@ ContextPulse is a CLI tool that analyzes your Git repository and generates beaut
 pip install contextpulse
 ```
 
-Or install from source:
-
-```bash
-git clone https://github.com/truth-against-lies/context-pulse.git
-cd context-pulse
-pip install -r requirements.txt
-python main.py
-```
-
 ## Quick Start
 
 ```bash
-# Run in any Git repository
-pulse
-
-# See today's activity
-pulse --today
-
-# Last 30 days
-pulse --month
-
-# Scan a specific repo
-pulse ~/code/my-project
-
-# Export to Markdown
-pulse --export report.md
-
-# Interactive mode (guided menu)
-pulse --interactive
+pulse                    # weekly report
+pulse today              # today only
+pulse month              # last 30 days
+pulse scan               # project health check
+pulse team               # who contributed what
+pulse hours              # your work patterns
+pulse vs                 # this week vs last week
+pulse streak             # commit streak + calendar
+pulse log                # pretty git log with icons
+pulse help               # see all commands
 ```
 
-## All Options
+## All Commands
 
+### Reports
+| Command | Description |
+|---------|-------------|
+| `pulse` | Weekly activity report (default) |
+| `pulse today` | Today's commits only |
+| `pulse week` | Last 7 days |
+| `pulse month` | Last 30 days |
+| `pulse since 2026-03-01` | From a specific date |
+
+### Analysis
+| Command | Description |
+|---------|-------------|
+| `pulse scan` | Project health check (6 checks + score) |
+| `pulse team` | Top contributors with percentages |
+| `pulse hours` | Work patterns by hour and day |
+| `pulse vs` | Compare current period to previous |
+| `pulse streak` | Commit streak tracker + 28-day calendar |
+| `pulse log` | Pretty git log with smart icons |
+| `pulse multi ~/code` | Scan all repos in a directory |
+
+### Options
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--today` | `-t` | Show today's commits only |
-| `--days N` | `-d N` | Last N days |
-| `--week` | `-w` | Last 7 days (default) |
-| `--month` | `-m` | Last 30 days |
-| `--since DATE` | `-s DATE` | Since a specific date (YYYY-MM-DD) |
-| `--author NAME` | `-a NAME` | Filter by author name |
-| `--compare A..B` | `-c A..B` | Compare two branches |
-| `--export FILE` | `-e FILE` | Export report to Markdown file |
+| `--days N` | `-d N` | Look back N days |
+| `--author NAME` | `-a` | Filter by author |
+| `--compare A..B` | `-c` | Compare two branches |
+| `--export FILE` | `-e` | Export to Markdown |
+| `--html FILE` | | Export to styled HTML |
 | `--json` | `-j` | Output as JSON |
-| `--interactive` | `-i` | Interactive menu mode |
+| `--lang he` | `-l he` | Hebrew output |
+| `--theme NAME` | | Color theme (ocean/forest/sunset/minimal) |
+| `--version` | `-v` | Show version |
+
+### Setup
+| Command | Description |
+|---------|-------------|
+| `pulse init` | Create `.pulserc` config for project defaults |
+| `pulse i` | Interactive mode (guided menu) |
+| `pulse help` | Full command reference |
 
 ## Example Output
 
 ```
+   ____            _            _   ____        _
+  / ___|___  _ __ | |_ _____  _| |_|  _ \ _   _| |___  ___
+ | |   / _ \| '_ \| __/ _ \ \/ / __| |_) | | | | / __|/ _ \
+ | |__| (_) | | | | ||  __/>  <| |_|  __/| |_| | \__ \  __/
+  \____\___/|_| |_|\__\___/_/\_\\__|_|    \__,_|_|___/\___|
+  Turn your Git history into a human story
+
 ╭────────────────────────────────────╮
 │ ContextPulse - Git Activity Report │
 │ last 7 days                        │
 ╰──────────── 54 commits ────────────╯
 
-╭──────────────────── Summary ─────────────────────╮
-│ You made 54 commits, focusing mainly on HTML     │
-│ (89%). Main activities: bug fixes, new features. │
-│ Also touched: JavaScript, Style.                 │
-╰──────────────────────────────────────────────────╯
+╭──────────────────────────── Summary ─────────────────────────────╮
+│ You made 54 commits, focusing mainly on HTML (89%). Main         │
+│ activities: bug fixes, new features. Also touched: JavaScript.   │
+╰──────────────────────────────────────────────────────────────────╯
 
        Hot Files (most changed)
 ┏━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┓
@@ -95,6 +134,42 @@ pulse --interactive
 Daily Activity
   2026-03-26  ███████████████████████ 7
   2026-03-27  ██████████████████████████████ 9
+
+  +18815 lines added  -4109 lines removed  (net: +14706)
+
+  Total: 54 commits by 1 author(s), 633 file changes
+```
+
+### Commit Streak
+```
+╭─────────────────────── Commit Streak ────────────────────────╮
+│ 🔥 Current streak: 12 days 🔥                                │
+│ On fire!                                                      │
+│                                                               │
+│ Best streak ever: 14 days                                     │
+│ Total active days: 21                                         │
+╰──────────────────────────────────────────────────────────────╯
+
+Last 28 days:
+  □ □ □ □ ■ ■ ■  ■ ■ ■ ■ ■ ■ □  ■ ■ ■ ■ ■ ■ ■  ■ ■ ■ □ ■ ■ □
+```
+
+### Work Patterns
+```
+Activity by Hour
+  10:00  ████████████████████████ 18
+  13:00  █████████████████████████ 19
+  18:00  █████████████████████████ 19
+
+  Peak hour: 18:00 (19 commits)
+  Peak day: Friday (56 commits)
+  Pattern: You're a afternoon coder (12-18)
+```
+
+### HTML Export
+Export beautiful dark-themed HTML reports:
+```bash
+pulse --html report.html
 ```
 
 ## Requirements
@@ -105,3 +180,9 @@ Daily Activity
 ## License
 
 MIT
+
+---
+
+<p align="center">
+  Made with <a href="https://claude.ai">Claude</a> + determination
+</p>
