@@ -1534,6 +1534,359 @@ logo = true
                   "to share your settings.[/dim]")
 
 
+def streak_report(repo_path="."):
+    """
+    pulse streak: מראה כמה ימים רצופים אתה עושה קומיטים.
+    כמו streak ב-GitHub — מוטיבציה להמשיך!
+    """
+    repo = Repo(repo_path)
+
+    # אוספים את כל הימים שהיו בהם קומיטים
+    commit_days = set()
+    for commit in repo.iter_commits():
+        day = datetime.fromtimestamp(
+            commit.committed_date
+        ).strftime("%Y-%m-%d")
+        commit_days.add(day)
+
+    if not commit_days:
+        console.print(Panel("No commits found.", style="yellow"))
+        return
+
+    # ממיינים ובודקים רצף מהיום אחורה
+    today = datetime.now().strftime("%Y-%m-%d")
+    current_streak = 0
+    check_date = datetime.now()
+
+    while True:
+        day_str = check_date.strftime("%Y-%m-%d")
+        if day_str in commit_days:
+            current_streak += 1
+            check_date = check_date.replace(
+                hour=0, minute=0, second=0
+            ) - __import__("datetime").timedelta(days=1)
+        else:
+            # אם היום אין קומיט, בודקים אם אתמול היה
+            if current_streak == 0 and day_str == today:
+                check_date = check_date.replace(
+                    hour=0, minute=0, second=0
+                ) - __import__("datetime").timedelta(days=1)
+                continue
+            break
+
+    # מוצאים את הרצף הכי ארוך אי פעם
+    sorted_days = sorted(commit_days)
+    best_streak = 0
+    temp_streak = 1
+
+    for i in range(1, len(sorted_days)):
+        prev = datetime.strptime(sorted_days[i - 1], "%Y-%m-%d")
+        curr = datetime.strptime(sorted_days[i], "%Y-%m-%d")
+        if (curr - prev).days == 1:
+            temp_streak += 1
+        else:
+            best_streak = max(best_streak, temp_streak)
+            temp_streak = 1
+    best_streak = max(best_streak, temp_streak)
+
+    # תצוגה
+    show_logo()
+    console.print()
+
+    # אש לפי רצף
+    if current_streak >= 30:
+        fire = "🔥🔥🔥"
+        msg = "LEGENDARY!"
+    elif current_streak >= 14:
+        fire = "🔥🔥"
+        msg = "On fire!"
+    elif current_streak >= 7:
+        fire = "🔥"
+        msg = "Great streak!"
+    elif current_streak >= 3:
+        fire = "✨"
+        msg = "Building momentum!"
+    elif current_streak >= 1:
+        fire = "👍"
+        msg = "Keep going!"
+    else:
+        fire = "💤"
+        msg = "Start a new streak today!"
+
+    console.print(
+        Panel(
+            f"{fire} [bold]Current streak: {current_streak} days[/bold] {fire}\n"
+            f"[dim]{msg}[/dim]\n\n"
+            f"Best streak ever: [cyan]{best_streak} days[/cyan]\n"
+            f"Total active days: [green]{len(commit_days)}[/green]",
+            title="Commit Streak",
+            border_style="yellow",
+        )
+    )
+
+    # לוח שנה של 4 שבועות אחרונים
+    console.print()
+    console.print("[bold]Last 28 days:[/bold]")
+    line = "  "
+    for i in range(27, -1, -1):
+        day = datetime.now() - __import__("datetime").timedelta(days=i)
+        day_str = day.strftime("%Y-%m-%d")
+        if day_str in commit_days:
+            line += "[green]■[/green] "
+        else:
+            line += "[dim]□[/dim] "
+        if (28 - i) % 7 == 0:
+            line += " "
+    console.print(line)
+    console.print("  [dim]■ = committed  □ = no commits[/dim]")
+    console.print()
+
+
+def pretty_log(repo_path=".", count=20):
+    """
+    pulse log: git log אבל יפה — עם צבעים, קטגוריות וסיכום.
+    כברירת מחדל מראה 20 קומיטים אחרונים.
+    """
+    repo = Repo(repo_path)
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[{th('title')}]Recent Commits[/{th('title')}]",
+            border_style=th("border"),
+        )
+    )
+    console.print()
+
+    for i, commit in enumerate(repo.iter_commits(max_count=count)):
+        commit_dt = datetime.fromtimestamp(commit.committed_date)
+        date_str = commit_dt.strftime("%Y-%m-%d %H:%M")
+        msg = commit.message.strip().split("\n")[0]
+        hash_short = commit.hexsha[:7]
+        author = str(commit.author)
+        files = list(commit.stats.files.keys())
+        ins = commit.stats.total.get("insertions", 0)
+        dels = commit.stats.total.get("deletions", 0)
+
+        # סוג פעולה לפי הודעת הקומיט
+        msg_lower = msg.lower()
+        if msg_lower.startswith("fix"):
+            icon = "🔧"
+        elif msg_lower.startswith("add"):
+            icon = "✨"
+        elif msg_lower.startswith("update") or msg_lower.startswith("improve"):
+            icon = "📦"
+        elif msg_lower.startswith("refactor"):
+            icon = "♻️"
+        elif msg_lower.startswith("remove") or msg_lower.startswith("delete"):
+            icon = "🗑️"
+        elif msg_lower.startswith("test"):
+            icon = "🧪"
+        elif msg_lower.startswith("doc"):
+            icon = "📝"
+        else:
+            icon = "💻"
+
+        console.print(
+            f"  [{th('accent')}]{hash_short}[/{th('accent')}] "
+            f"[dim]{date_str}[/dim] {icon} {msg}"
+        )
+        console.print(
+            f"           [dim]{author} · "
+            f"{len(files)} files · "
+            f"[green]+{ins}[/green] [red]-{dels}[/red][/dim]"
+        )
+        if i < count - 1:
+            console.print("           [dim]│[/dim]")
+
+    console.print()
+
+
+def show_help():
+    """
+    pulse help: מדריך יפה עם כל הפקודות — הרבה יותר נחמד מ---help.
+    """
+    show_logo()
+
+    # פקודות ראשיות
+    console.print("[bold]Commands:[/bold]")
+    cmds = Table(show_header=False, box=None, padding=(0, 2))
+    cmds.add_column(style="cyan bold", width=22)
+    cmds.add_column(style="white")
+
+    cmds.add_row("pulse", "Weekly activity report (default)")
+    cmds.add_row("pulse today", "Today's commits only")
+    cmds.add_row("pulse week", "Last 7 days")
+    cmds.add_row("pulse month", "Last 30 days")
+    cmds.add_row("pulse since DATE", "Since a specific date (YYYY-MM-DD)")
+    cmds.add_row("pulse scan", "Project health check + quality score")
+    cmds.add_row("pulse team", "Top contributors breakdown")
+    cmds.add_row("pulse hours", "Work patterns (hours & days)")
+    cmds.add_row("pulse vs", "Compare current vs previous period")
+    cmds.add_row("pulse streak", "Commit streak + calendar")
+    cmds.add_row("pulse log", "Pretty git log with icons")
+    cmds.add_row("pulse multi PATH", "Scan all repos in a directory")
+    cmds.add_row("pulse init", "Create .pulserc config file")
+    cmds.add_row("pulse i", "Interactive mode (guided menu)")
+    cmds.add_row("pulse help", "This help page")
+    console.print(cmds)
+
+    # אפשרויות
+    console.print()
+    console.print("[bold]Options:[/bold]")
+    opts = Table(show_header=False, box=None, padding=(0, 2))
+    opts.add_column(style="yellow bold", width=22)
+    opts.add_column(style="white")
+
+    opts.add_row("--days N, -d N", "Look back N days")
+    opts.add_row("--author NAME, -a", "Filter by author")
+    opts.add_row("--compare A..B, -c", "Compare two branches")
+    opts.add_row("--export FILE, -e", "Export to Markdown")
+    opts.add_row("--html FILE", "Export to HTML with charts")
+    opts.add_row("--json, -j", "Output as JSON")
+    opts.add_row("--lang he, -l he", "Hebrew output")
+    opts.add_row("--theme NAME", "Color theme (ocean/forest/sunset/minimal)")
+    opts.add_row("--version, -v", "Show version")
+    console.print(opts)
+
+    # דוגמאות
+    console.print()
+    console.print("[bold]Examples:[/bold]")
+    console.print("  [dim]$[/dim] pulse month --lang he")
+    console.print("  [dim]$[/dim] pulse --theme ocean --export report.md")
+    console.print("  [dim]$[/dim] pulse team 90 ~/code/my-project")
+    console.print("  [dim]$[/dim] pulse multi ~/code")
+    console.print("  [dim]$[/dim] pulse vs 14")
+    console.print()
+
+
+def export_html(commits, period_label, output_path):
+    """
+    מייצא דוח HTML עם טבלאות ו-CSS מעוצב.
+    אפשר לפתוח בדפדפן — נראה הרבה יותר טוב מ-Markdown.
+    """
+    categories = group_by_category(commits)
+    total_files = sum(c["files_changed"] for c in commits)
+    total_ins = sum(c.get("insertions", 0) for c in commits)
+    total_dels = sum(c.get("deletions", 0) for c in commits)
+    authors = set(c["author"] for c in commits)
+    summary = generate_summary(commits, categories)
+    hot = get_hot_files(commits)
+    day_counts = Counter(c["date_short"] for c in commits)
+
+    # בניית גרף בר פשוט ב-CSS
+    max_day = max(day_counts.values()) if day_counts else 1
+    bars_html = ""
+    for day, count in sorted(day_counts.items()):
+        pct = round(count / max_day * 100)
+        bars_html += (
+            f'<div class="bar-row">'
+            f'<span class="bar-label">{day}</span>'
+            f'<div class="bar" style="width:{pct}%">{count}</div>'
+            f'</div>\n'
+        )
+
+    # קטגוריות HTML
+    cat_rows = ""
+    sorted_cats = sorted(
+        categories.items(), key=lambda x: x[1]["commits"], reverse=True
+    )
+    for cat_name, data in sorted_cats:
+        cat_rows += (
+            f"<tr><td>{cat_name}</td>"
+            f"<td>{data['commits']}</td>"
+            f"<td>{len(data['files'])}</td></tr>\n"
+        )
+
+    # Hot files HTML
+    hot_rows = ""
+    for i, (filename, count) in enumerate(hot, 1):
+        fire = "🔥 " if count >= 5 else ""
+        hot_rows += (
+            f"<tr><td>{i}</td>"
+            f"<td>{fire}{filename}</td>"
+            f"<td>{count}</td></tr>\n"
+        )
+
+    # קומיטים HTML
+    commit_rows = ""
+    for c in commits:
+        commit_rows += (
+            f"<tr><td>{c['date']}</td>"
+            f"<td><code>{c['hash']}</code></td>"
+            f"<td>{c['message']}</td>"
+            f"<td>+{c.get('insertions',0)}/-{c.get('deletions',0)}</td>"
+            f"<td>{c['files_changed']}</td></tr>\n"
+        )
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ContextPulse Report — {period_label}</title>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #0d1117; color: #c9d1d9; padding: 2rem; max-width: 960px; margin: auto; }}
+  h1 {{ color: #58a6ff; margin-bottom: 0.5rem; }}
+  h2 {{ color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #21262d; padding-bottom: 0.5rem; }}
+  .summary {{ background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+              padding: 1rem; margin: 1rem 0; }}
+  .stats {{ display: flex; gap: 2rem; margin: 1rem 0; }}
+  .stat {{ background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+           padding: 1rem; text-align: center; flex: 1; }}
+  .stat .number {{ font-size: 2rem; font-weight: bold; color: #58a6ff; }}
+  .stat .label {{ color: #8b949e; font-size: 0.85rem; }}
+  .green {{ color: #3fb950; }}
+  .red {{ color: #f85149; }}
+  table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
+  th {{ background: #161b22; color: #58a6ff; text-align: left; padding: 0.75rem; }}
+  td {{ padding: 0.75rem; border-bottom: 1px solid #21262d; }}
+  tr:hover {{ background: #161b22; }}
+  code {{ background: #1f2937; padding: 2px 6px; border-radius: 3px; font-size: 0.9rem; }}
+  .bar-row {{ display: flex; align-items: center; margin: 0.3rem 0; }}
+  .bar-label {{ width: 100px; font-size: 0.85rem; color: #8b949e; }}
+  .bar {{ background: linear-gradient(90deg, #238636, #3fb950); color: white;
+          padding: 4px 8px; border-radius: 3px; font-size: 0.8rem; min-width: 30px; }}
+  .footer {{ margin-top: 3rem; color: #484f58; font-size: 0.8rem; text-align: center; }}
+</style>
+</head>
+<body>
+<h1>ContextPulse</h1>
+<p style="color:#8b949e">{period_label} — generated {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+
+<div class="summary">{summary}</div>
+
+<div class="stats">
+  <div class="stat"><div class="number">{len(commits)}</div><div class="label">Commits</div></div>
+  <div class="stat"><div class="number">{len(authors)}</div><div class="label">Authors</div></div>
+  <div class="stat"><div class="number">{total_files}</div><div class="label">File Changes</div></div>
+  <div class="stat"><div class="number green">+{total_ins}</div><div class="label">Lines Added</div></div>
+  <div class="stat"><div class="number red">-{total_dels}</div><div class="label">Lines Removed</div></div>
+</div>
+
+<h2>Daily Activity</h2>
+{bars_html}
+
+<h2>Changes by Category</h2>
+<table><tr><th>Category</th><th>Commits</th><th>Files</th></tr>
+{cat_rows}</table>
+
+<h2>Hot Files</h2>
+<table><tr><th>#</th><th>File</th><th>Changes</th></tr>
+{hot_rows}</table>
+
+<h2>Commits</h2>
+<table><tr><th>Date</th><th>Hash</th><th>Message</th><th>+/-</th><th>Files</th></tr>
+{commit_rows}</table>
+
+<div class="footer">Generated by ContextPulse v0.6.0 — pip install contextpulse</div>
+</body></html>"""
+
+    Path(output_path).write_text(html, encoding="utf-8")
+    console.print(f"[green]HTML report saved to:[/green] {output_path}")
+
+
 # === מיפוי קיצורים עצלניים ===
 # במקום pulse --today אפשר לכתוב pulse today
 # המילון הזה מתרגם את המילה הקצרה לדגל המלא
@@ -1556,6 +1909,9 @@ SHORTCUTS = {
     "vs": None,          # פקודה מיוחדת — השוואת תקופות
     "multi": None,       # פקודה מיוחדת — ריבוי ריפו
     "init": None,        # פקודה מיוחדת — הגדרות לפרויקט
+    "streak": None,      # פקודה מיוחדת — רצף ימים
+    "log": None,         # פקודה מיוחדת — git log יפה
+    "help": None,        # פקודה מיוחדת — מדריך
 }
 
 
@@ -1618,6 +1974,26 @@ def expand_shortcuts(argv):
     if first == "init":
         repo = argv[1] if len(argv) > 1 else "."
         init_config(repo)
+        return None
+
+    if first == "streak":
+        repo = argv[1] if len(argv) > 1 else "."
+        streak_report(repo)
+        return None
+
+    if first == "log":
+        repo = "."
+        count = 20
+        if len(argv) > 1 and argv[1].isdigit():
+            count = int(argv[1])
+            repo = argv[2] if len(argv) > 2 else "."
+        elif len(argv) > 1:
+            repo = argv[1]
+        pretty_log(repo, count)
+        return None
+
+    if first == "help":
+        show_help()
         return None
 
     # since/s = צריך את התאריך שאחריו
@@ -1709,6 +2085,17 @@ def main():
         "--interactive", "-i",
         action="store_true",
         help="Interactive mode - choose options from a menu",
+    )
+    parser.add_argument(
+        "--version", "-v",
+        action="version",
+        version="ContextPulse 0.6.0",
+    )
+    parser.add_argument(
+        "--html",
+        type=str,
+        default=None,
+        help="Export report to HTML file (e.g., report.html)",
     )
     parser.add_argument(
         "--lang", "-l",
@@ -1805,6 +2192,8 @@ def main():
 
         if args.export:
             export_markdown(commits, period_label, args.export)
+        if args.html:
+            export_html(commits, period_label, args.html)
 
 
 if __name__ == "__main__":
