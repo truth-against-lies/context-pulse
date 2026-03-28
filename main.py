@@ -94,6 +94,202 @@ CATEGORY_COLORS = {
     "Other": "dim",
 }
 
+# === תרגומים ===
+# כל טקסט שמופיע למשתמש עובר דרך המילון הזה.
+# ברירת מחדל = אנגלית. עם --lang he = עברית.
+TRANSLATIONS = {
+    "en": {
+        "starting": "starting...",
+        "summary": "Summary",
+        "commits": "Commits",
+        "changes_by_cat": "Changes by Category",
+        "hot_files": "Hot Files (most changed)",
+        "changes_by_dir": "Changes by Directory",
+        "daily_activity": "Daily Activity",
+        "total": "Total",
+        "commits_word": "commits",
+        "by": "by",
+        "author_s": "author(s)",
+        "file_changes": "file changes",
+        "lines_added": "lines added",
+        "lines_removed": "lines removed",
+        "net": "net",
+        "no_commits": "No commits found in this period.",
+        "report_title": "Git Activity Report",
+        "team_report": "Team Report",
+        "contributors": "Contributors",
+        "work_patterns": "Work Patterns",
+        "activity_by_hour": "Activity by Hour",
+        "activity_by_day": "Activity by Day",
+        "peak_hour": "Peak hour",
+        "peak_day": "Peak day",
+        "pattern": "Pattern",
+        "period_comparison": "Period Comparison",
+        "current": "Current",
+        "previous": "Previous",
+        "change": "Change",
+        "productivity_up": "Productivity up!",
+        "slower_period": "Slower period.",
+        "same_pace": "Same pace as before.",
+        "project_health": "Project Health",
+        "quality_check": "Quality Check",
+        "project_structure": "Project Structure",
+        "file_types": "File Types in Project",
+        "largest_files": "Largest Files",
+        "report_saved": "Report saved to",
+        "you_made": "You made",
+        "focusing_on": "focusing mainly on",
+        "main_activities": "Main activities",
+        "also_touched": "Also touched",
+        "bug_fixes": "bug fixes",
+        "new_features": "new features",
+        "improvements": "improvements",
+        "refactoring": "refactoring",
+        "testing": "testing",
+        "documentation": "documentation",
+        "various": "various changes",
+        "morning_person": "morning person (6-12)",
+        "afternoon_coder": "afternoon coder (12-18)",
+        "evening_hacker": "evening hacker (18-22)",
+        "night_owl": "night owl (22-06)",
+        "youre_a": "You're a",
+    },
+    "he": {
+        "starting": "מתחיל...",
+        "summary": "סיכום",
+        "commits": "קומיטים",
+        "changes_by_cat": "שינויים לפי קטגוריה",
+        "hot_files": "קבצים חמים (הכי השתנו)",
+        "changes_by_dir": "שינויים לפי תיקייה",
+        "daily_activity": "פעילות יומית",
+        "total": "סה״כ",
+        "commits_word": "קומיטים",
+        "by": "ע״י",
+        "author_s": "מחבר/ים",
+        "file_changes": "שינויי קבצים",
+        "lines_added": "שורות נוספו",
+        "lines_removed": "שורות נמחקו",
+        "net": "נטו",
+        "no_commits": "לא נמצאו קומיטים בתקופה הזו.",
+        "report_title": "דוח פעילות Git",
+        "team_report": "דוח צוות",
+        "contributors": "תורמים",
+        "work_patterns": "דפוסי עבודה",
+        "activity_by_hour": "פעילות לפי שעה",
+        "activity_by_day": "פעילות לפי יום",
+        "peak_hour": "שעת שיא",
+        "peak_day": "יום שיא",
+        "pattern": "דפוס",
+        "period_comparison": "השוואת תקופות",
+        "current": "נוכחי",
+        "previous": "קודם",
+        "change": "שינוי",
+        "productivity_up": "פרודוקטיביות עלתה!",
+        "slower_period": "תקופה איטית יותר.",
+        "same_pace": "אותו קצב כמו קודם.",
+        "project_health": "בריאות הפרויקט",
+        "quality_check": "בדיקת איכות",
+        "project_structure": "מבנה הפרויקט",
+        "file_types": "סוגי קבצים בפרויקט",
+        "largest_files": "הקבצים הגדולים ביותר",
+        "report_saved": "הדוח נשמר ב",
+        "you_made": "ביצעת",
+        "focusing_on": "בדגש על",
+        "main_activities": "פעילויות עיקריות",
+        "also_touched": "גם נגעת ב",
+        "bug_fixes": "תיקוני באגים",
+        "new_features": "פיצ׳רים חדשים",
+        "improvements": "שיפורים",
+        "refactoring": "ריפקטורינג",
+        "testing": "בדיקות",
+        "documentation": "תיעוד",
+        "various": "שינויים שונים",
+        "morning_person": "אדם של בוקר (6-12)",
+        "afternoon_coder": "מתכנת צהריים (12-18)",
+        "evening_hacker": "האקר ערב (18-22)",
+        "night_owl": "ינשוף לילה (22-06)",
+        "youre_a": "אתה",
+    },
+}
+
+# שפה פעילה — ברירת מחדל אנגלית
+current_lang = "en"
+
+
+def t(key):
+    """מחזיר טקסט מתורגם לפי השפה הפעילה."""
+    return TRANSLATIONS.get(current_lang, TRANSLATIONS["en"]).get(
+        key, TRANSLATIONS["en"].get(key, key)
+    )
+
+
+# === ערכות נושא (Themes) ===
+# כל theme מגדיר צבעים לחלקים שונים בדוח
+THEMES = {
+    "default": {
+        "title": "bold cyan",
+        "subtitle": "dim",
+        "header": "bold magenta",
+        "border": "cyan",
+        "summary_border": "green",
+        "accent": "cyan",
+        "positive": "green",
+        "negative": "red",
+        "neutral": "dim",
+    },
+    "ocean": {
+        "title": "bold blue",
+        "subtitle": "dim cyan",
+        "header": "bold cyan",
+        "border": "blue",
+        "summary_border": "cyan",
+        "accent": "bright_blue",
+        "positive": "bright_cyan",
+        "negative": "bright_red",
+        "neutral": "dim",
+    },
+    "forest": {
+        "title": "bold green",
+        "subtitle": "dim",
+        "header": "bold bright_green",
+        "border": "green",
+        "summary_border": "bright_green",
+        "accent": "green",
+        "positive": "bright_green",
+        "negative": "red",
+        "neutral": "dim",
+    },
+    "sunset": {
+        "title": "bold bright_red",
+        "subtitle": "dim yellow",
+        "header": "bold yellow",
+        "border": "bright_red",
+        "summary_border": "yellow",
+        "accent": "bright_yellow",
+        "positive": "yellow",
+        "negative": "red",
+        "neutral": "dim",
+    },
+    "minimal": {
+        "title": "bold white",
+        "subtitle": "dim",
+        "header": "bold white",
+        "border": "white",
+        "summary_border": "white",
+        "accent": "white",
+        "positive": "green",
+        "negative": "red",
+        "neutral": "dim",
+    },
+}
+
+current_theme = THEMES["default"]
+
+
+def th(key):
+    """מחזיר צבע לפי ה-theme הפעיל."""
+    return current_theme.get(key, "white")
+
 
 def get_category(filename):
     """
@@ -381,7 +577,7 @@ def display_report(commits, period_label):
     """מציג את הדוח המלא בטרמינל."""
     if not commits:
         console.print(
-            Panel("No commits found in this period.", style="yellow")
+            Panel(t("no_commits"), style="yellow")
         )
         return
 
@@ -389,9 +585,10 @@ def display_report(commits, period_label):
     console.print()
     console.print(
         Panel.fit(
-            f"[bold cyan]ContextPulse[/bold cyan] - Git Activity Report\n"
-            f"[dim]{period_label}[/dim]",
-            subtitle=f"{len(commits)} commits",
+            f"[{th('title')}]ContextPulse[/{th('title')}] - {t('report_title')}\n"
+            f"[{th('subtitle')}]{period_label}[/{th('subtitle')}]",
+            subtitle=f"{len(commits)} {t('commits_word')}",
+            border_style=th("border"),
         )
     )
 
@@ -399,19 +596,19 @@ def display_report(commits, period_label):
     categories = group_by_category(commits)
     summary = generate_summary(commits, categories)
     console.print()
-    console.print(Panel(summary, title="Summary", border_style="green"))
+    console.print(Panel(summary, title=t("summary"), border_style=th("summary_border")))
 
     # === טבלת קומיטים ===
     console.print()
     table = Table(
-        title="Commits",
+        title=t("commits"),
         show_header=True,
-        header_style="bold magenta",
+        header_style=th("header"),
     )
     table.add_column("Date", style="dim", width=16)
-    table.add_column("Hash", style="cyan", width=9)
+    table.add_column("Hash", style=th("accent"), width=9)
     table.add_column("Message", style="white")
-    table.add_column("Files", justify="right", style="green")
+    table.add_column("Files", justify="right", style=th("positive"))
 
     for commit in commits:
         table.add_row(
@@ -426,12 +623,12 @@ def display_report(commits, period_label):
     # === סיכום לפי קטגוריות עם צבעים ===
     console.print()
     cat_table = Table(
-        title="Changes by Category",
+        title=t("changes_by_cat"),
         show_header=True,
         header_style="bold blue",
     )
     cat_table.add_column("Category", style="bold")
-    cat_table.add_column("Commits", justify="right")
+    cat_table.add_column(t("commits_word"), justify="right")
     cat_table.add_column("Files", justify="right")
 
     sorted_cats = sorted(
@@ -464,9 +661,9 @@ def display_report(commits, period_label):
     if total_insertions > 0 or total_deletions > 0:
         console.print()
         console.print(
-            f"  [green]+{total_insertions} lines added[/green]  "
-            f"[red]-{total_deletions} lines removed[/red]  "
-            f"[dim](net: {total_insertions - total_deletions:+d})[/dim]"
+            f"  [{th('positive')}]+{total_insertions} {t('lines_added')}[/{th('positive')}]  "
+            f"[{th('negative')}]-{total_deletions} {t('lines_removed')}[/{th('negative')}]  "
+            f"[{th('neutral')}]({t('net')}: {total_insertions - total_deletions:+d})[/{th('neutral')}]"
         )
 
     # === שורת סיכום ===
@@ -474,8 +671,9 @@ def display_report(commits, period_label):
     authors = set(c["author"] for c in commits)
     console.print()
     console.print(
-        f"  [bold]Total:[/bold] {len(commits)} commits by "
-        f"{len(authors)} author(s), {total_files} file changes"
+        f"  [bold]{t('total')}:[/bold] {len(commits)} {t('commits_word')} "
+        f"{t('by')} {len(authors)} {t('author_s')}, "
+        f"{total_files} {t('file_changes')}"
     )
     console.print()
 
@@ -1512,8 +1710,27 @@ def main():
         action="store_true",
         help="Interactive mode - choose options from a menu",
     )
+    parser.add_argument(
+        "--lang", "-l",
+        type=str,
+        default="en",
+        choices=["en", "he"],
+        help="Output language: en (English) or he (Hebrew)",
+    )
+    parser.add_argument(
+        "--theme",
+        type=str,
+        default="default",
+        choices=list(THEMES.keys()),
+        help="Color theme: default, ocean, forest, sunset, minimal",
+    )
 
     args = parser.parse_args(expanded)
+
+    # === הגדרת שפה ו-theme ===
+    global current_lang, current_theme
+    current_lang = args.lang
+    current_theme = THEMES.get(args.theme, THEMES["default"])
 
     # === מצב אינטראקטיבי ===
     if args.interactive:
