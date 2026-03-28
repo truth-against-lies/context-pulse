@@ -131,16 +131,15 @@ def get_commits(repo_path=".", days=7, author_filter=None):
 
         changed_files = list(commit.stats.files.keys())
 
+        commit_dt = datetime.fromtimestamp(commit.committed_date)
         commits.append({
             "hash": commit.hexsha[:7],
             "message": commit.message.strip().split("\n")[0],
             "author": str(commit.author),
-            "date": datetime.fromtimestamp(
-                commit.committed_date
-            ).strftime("%Y-%m-%d %H:%M"),
-            "date_short": datetime.fromtimestamp(
-                commit.committed_date
-            ).strftime("%Y-%m-%d"),
+            "date": commit_dt.strftime("%Y-%m-%d %H:%M"),
+            "date_short": commit_dt.strftime("%Y-%m-%d"),
+            "hour": commit_dt.hour,
+            "weekday": commit_dt.strftime("%A"),
             "files_changed": len(changed_files),
             "files": changed_files,
         })
@@ -173,16 +172,15 @@ def get_compare_commits(repo_path, compare_str):
     commits = []
     for commit in compare_commits:
         changed_files = list(commit.stats.files.keys())
+        commit_dt = datetime.fromtimestamp(commit.committed_date)
         commits.append({
             "hash": commit.hexsha[:7],
             "message": commit.message.strip().split("\n")[0],
             "author": str(commit.author),
-            "date": datetime.fromtimestamp(
-                commit.committed_date
-            ).strftime("%Y-%m-%d %H:%M"),
-            "date_short": datetime.fromtimestamp(
-                commit.committed_date
-            ).strftime("%Y-%m-%d"),
+            "date": commit_dt.strftime("%Y-%m-%d %H:%M"),
+            "date_short": commit_dt.strftime("%Y-%m-%d"),
+            "hour": commit_dt.hour,
+            "weekday": commit_dt.strftime("%A"),
             "files_changed": len(changed_files),
             "files": changed_files,
         })
@@ -664,6 +662,316 @@ def interactive_mode():
         export_json(commits, period_label)
 
 
+LOGO = """[bold cyan]
+   ____            _            _   ____        _
+  / ___|___  _ __ | |_ _____  _| |_|  _ \\ _   _| |___  ___
+ | |   / _ \\| '_ \\| __/ _ \\ \\/ / __| |_) | | | | / __|/ _ \\
+ | |__| (_) | | | | ||  __/>  <| |_|  __/| |_| | \\__ \\  __/
+  \\____\\___/|_| |_|\\__\\___/_/\\_\\\\__|_|    \\__,_|_|___/\\___|
+[/bold cyan][dim]  Turn your Git history into a human story[/dim]
+"""
+
+
+def show_logo():
+    """מציג את הלוגו של ContextPulse."""
+    console.print(LOGO)
+
+
+def team_report(repo_path=".", days=30):
+    """
+    pulse team: מראה מי הכי פעיל בפרויקט.
+    כולל: מספר קומיטים, אחוז תרומה, קבצים שהשתנו.
+    """
+    repo = Repo(repo_path)
+    since_date = datetime.now().timestamp() - (days * 24 * 60 * 60)
+
+    # אוספים נתונים לכל מחבר
+    authors = defaultdict(lambda: {
+        "commits": 0, "files": set(), "first": None, "last": None,
+    })
+
+    for commit in repo.iter_commits():
+        if commit.committed_date < since_date:
+            break
+        name = str(commit.author)
+        authors[name]["commits"] += 1
+        for f in commit.stats.files:
+            authors[name]["files"].add(f)
+        date_str = datetime.fromtimestamp(
+            commit.committed_date
+        ).strftime("%Y-%m-%d")
+        if authors[name]["first"] is None:
+            authors[name]["first"] = date_str
+        authors[name]["last"] = date_str
+
+    if not authors:
+        console.print(Panel("No commits found.", style="yellow"))
+        return
+
+    show_logo()
+    total_commits = sum(a["commits"] for a in authors.values())
+
+    console.print(
+        Panel.fit(
+            f"[bold cyan]Team Report[/bold cyan] — last {days} days",
+            subtitle=f"{len(authors)} contributor(s)",
+        )
+    )
+    console.print()
+
+    table = Table(
+        title="Contributors",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Author", style="bold")
+    table.add_column("Commits", justify="right", style="cyan")
+    table.add_column("%", justify="right", style="green")
+    table.add_column("Files", justify="right", style="yellow")
+    table.add_column("Active", style="dim")
+
+    sorted_authors = sorted(
+        authors.items(),
+        key=lambda x: x[1]["commits"],
+        reverse=True,
+    )
+
+    for i, (name, data) in enumerate(sorted_authors, 1):
+        pct = round(data["commits"] / total_commits * 100)
+        bar = "█" * (pct // 5)  # בר ויזואלי
+        active_range = data["last"]
+        if data["first"] != data["last"]:
+            active_range = f"{data['last']} → {data['first']}"
+        table.add_row(
+            str(i),
+            name,
+            str(data["commits"]),
+            f"{pct}% {bar}",
+            str(len(data["files"])),
+            active_range,
+        )
+
+    console.print(table)
+    console.print()
+
+
+def hours_report(repo_path=".", days=30):
+    """
+    pulse hours: מנתח באילו שעות ובאילו ימים אתה הכי פעיל.
+    עוזר להבין את דפוסי העבודה שלך.
+    """
+    repo = Repo(repo_path)
+    since_date = datetime.now().timestamp() - (days * 24 * 60 * 60)
+
+    hour_counts = Counter()
+    day_counts = Counter()
+
+    for commit in repo.iter_commits():
+        if commit.committed_date < since_date:
+            break
+        commit_dt = datetime.fromtimestamp(commit.committed_date)
+        hour_counts[commit_dt.hour] += 1
+        day_counts[commit_dt.strftime("%A")] += 1
+
+    if not hour_counts:
+        console.print(Panel("No commits found.", style="yellow"))
+        return
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[bold cyan]Work Patterns[/bold cyan] — last {days} days",
+        )
+    )
+
+    # === שעות ===
+    console.print()
+    console.print("[bold]Activity by Hour[/bold]")
+
+    max_hour = max(hour_counts.values()) if hour_counts else 1
+
+    for hour in range(24):
+        count = hour_counts.get(hour, 0)
+        bar_len = round(count / max_hour * 25) if count > 0 else 0
+        bar = "█" * bar_len
+
+        # צבע: כחול=לילה, צהוב=בוקר, ירוק=צהריים, אדום=ערב
+        if 6 <= hour < 12:
+            color = "yellow"
+            period = "morning"
+        elif 12 <= hour < 18:
+            color = "green"
+            period = "afternoon"
+        elif 18 <= hour < 22:
+            color = "red"
+            period = "evening"
+        else:
+            color = "blue"
+            period = "night"
+
+        hour_str = f"{hour:02d}:00"
+        if count > 0:
+            console.print(
+                f"  {hour_str}  [{color}]{bar}[/{color}] {count}"
+            )
+        else:
+            console.print(f"  {hour_str}  [dim]·[/dim]")
+
+    # === ימים ===
+    console.print()
+    console.print("[bold]Activity by Day[/bold]")
+
+    day_order = [
+        "Monday", "Tuesday", "Wednesday", "Thursday",
+        "Friday", "Saturday", "Sunday",
+    ]
+    max_day = max(day_counts.values()) if day_counts else 1
+
+    for day_name in day_order:
+        count = day_counts.get(day_name, 0)
+        bar_len = round(count / max_day * 25) if count > 0 else 0
+        bar = "█" * bar_len
+        short = day_name[:3]
+
+        if count > 0:
+            console.print(f"  {short}  [cyan]{bar}[/cyan] {count}")
+        else:
+            console.print(f"  {short}  [dim]·[/dim]")
+
+    # === תובנות ===
+    console.print()
+    if hour_counts:
+        peak_hour = max(hour_counts, key=hour_counts.get)
+        console.print(
+            f"  [bold]Peak hour:[/bold] {peak_hour:02d}:00 "
+            f"({hour_counts[peak_hour]} commits)"
+        )
+    if day_counts:
+        peak_day = max(day_counts, key=day_counts.get)
+        console.print(
+            f"  [bold]Peak day:[/bold] {peak_day} "
+            f"({day_counts[peak_day]} commits)"
+        )
+
+    # זיהוי דפוס
+    morning = sum(hour_counts.get(h, 0) for h in range(6, 12))
+    afternoon = sum(hour_counts.get(h, 0) for h in range(12, 18))
+    evening = sum(hour_counts.get(h, 0) for h in range(18, 22))
+    night = sum(hour_counts.get(h, 0) for h in range(22, 24))
+    night += sum(hour_counts.get(h, 0) for h in range(0, 6))
+
+    periods = {
+        "morning person (6-12)": morning,
+        "afternoon coder (12-18)": afternoon,
+        "evening hacker (18-22)": evening,
+        "night owl (22-06)": night,
+    }
+    top_period = max(periods, key=periods.get)
+    console.print(f"  [bold]Pattern:[/bold] You're a {top_period}")
+    console.print()
+
+
+def vs_report(repo_path=".", days=7):
+    """
+    pulse vs: משווה את התקופה הנוכחית לתקופה הקודמת.
+    למשל: שבוע אחרון vs שבוע לפני.
+    """
+    repo = Repo(repo_path)
+
+    now = datetime.now().timestamp()
+    current_start = now - (days * 24 * 60 * 60)
+    previous_start = current_start - (days * 24 * 60 * 60)
+
+    current_commits = []
+    previous_commits = []
+
+    for commit in repo.iter_commits():
+        if commit.committed_date < previous_start:
+            break
+        if commit.committed_date >= current_start:
+            current_commits.append(commit)
+        elif commit.committed_date >= previous_start:
+            previous_commits.append(commit)
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[bold cyan]Period Comparison[/bold cyan]\n"
+            f"[dim]Current {days} days vs previous {days} days[/dim]",
+        )
+    )
+    console.print()
+
+    # === טבלת השוואה ===
+    table = Table(
+        show_header=True,
+        header_style="bold blue",
+    )
+    table.add_column("Metric", style="bold")
+    table.add_column(f"Previous {days}d", justify="right")
+    table.add_column(f"Current {days}d", justify="right")
+    table.add_column("Change", justify="right")
+
+    def change_str(current, previous):
+        """מחשב את ההבדל ומסמן בצבע: ירוק=עלייה, אדום=ירידה."""
+        if previous == 0:
+            if current > 0:
+                return "[green]+∞[/green]"
+            return "[dim]—[/dim]"
+        diff = current - previous
+        pct = round((diff / previous) * 100)
+        if diff > 0:
+            return f"[green]+{diff} (+{pct}%)[/green]"
+        elif diff < 0:
+            return f"[red]{diff} ({pct}%)[/red]"
+        return "[dim]same[/dim]"
+
+    curr_count = len(current_commits)
+    prev_count = len(previous_commits)
+    curr_files = sum(len(c.stats.files) for c in current_commits)
+    prev_files = sum(len(c.stats.files) for c in previous_commits)
+    curr_authors = len(set(str(c.author) for c in current_commits))
+    prev_authors = len(set(str(c.author) for c in previous_commits))
+
+    table.add_row(
+        "Commits",
+        str(prev_count),
+        str(curr_count),
+        change_str(curr_count, prev_count),
+    )
+    table.add_row(
+        "File changes",
+        str(prev_files),
+        str(curr_files),
+        change_str(curr_files, prev_files),
+    )
+    table.add_row(
+        "Contributors",
+        str(prev_authors),
+        str(curr_authors),
+        change_str(curr_authors, prev_authors),
+    )
+
+    console.print(table)
+
+    # === סיכום ===
+    console.print()
+    if curr_count > prev_count:
+        console.print(
+            f"  [green]↑ Productivity up![/green] "
+            f"{curr_count} vs {prev_count} commits"
+        )
+    elif curr_count < prev_count:
+        console.print(
+            f"  [red]↓ Slower period.[/red] "
+            f"{curr_count} vs {prev_count} commits"
+        )
+    else:
+        console.print("  [dim]Same pace as before.[/dim]")
+    console.print()
+
+
 def scan_code(repo_path="."):
     """
     פקודת scan: מנתח את הקוד בריפו ומראה דוח מבנה + איכות.
@@ -906,6 +1214,9 @@ SHORTCUTS = {
     "interactive": ["--interactive"],
     "i": ["--interactive"],
     "scan": None,        # פקודה מיוחדת — ניתוח קוד
+    "team": None,        # פקודה מיוחדת — דוח צוות
+    "hours": None,       # פקודה מיוחדת — דפוסי עבודה
+    "vs": None,          # פקודה מיוחדת — השוואת תקופות
 }
 
 
@@ -921,11 +1232,41 @@ def expand_shortcuts(argv):
 
     first = argv[0]
 
-    # scan = פקודה מיוחדת
+    # פקודות מיוחדות — כל אחת מפעילה פונקציה ייעודית
     if first == "scan":
         repo = argv[1] if len(argv) > 1 else "."
         scan_code(repo)
-        return None  # סימן שכבר טיפלנו
+        return None
+
+    if first == "team":
+        repo = argv[1] if len(argv) > 1 else "."
+        days = 30
+        # אפשר pulse team 90 (לשנות ימים)
+        if len(argv) > 1 and argv[1].isdigit():
+            days = int(argv[1])
+            repo = argv[2] if len(argv) > 2 else "."
+        team_report(repo, days)
+        return None
+
+    if first == "hours":
+        repo = argv[1] if len(argv) > 1 else "."
+        days = 30
+        if len(argv) > 1 and argv[1].isdigit():
+            days = int(argv[1])
+            repo = argv[2] if len(argv) > 2 else "."
+        hours_report(repo, days)
+        return None
+
+    if first == "vs":
+        days = 7
+        repo = "."
+        if len(argv) > 1 and argv[1].isdigit():
+            days = int(argv[1])
+            repo = argv[2] if len(argv) > 2 else "."
+        elif len(argv) > 1:
+            repo = argv[1]
+        vs_report(repo, days)
+        return None
 
     # since/s = צריך את התאריך שאחריו
     if first in ("since", "s") and len(argv) > 1:
@@ -1088,7 +1429,7 @@ def main():
     if args.json:
         export_json(commits, period_label)
     else:
-        console.print("[bold cyan]ContextPulse[/bold cyan] starting...\n")
+        show_logo()
         display_report(commits, period_label)
 
         if args.export:
