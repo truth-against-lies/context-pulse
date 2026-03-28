@@ -2491,6 +2491,19 @@ SHORTCUTS = {
     "trends": None,      # פקודה מיוחדת — מגמות לאורך זמן
     "learn": None,       # פקודה מיוחדת — מדריך קוד HTML
     "help": None,        # פקודה מיוחדת — מדריך
+    # === קיצורים בעברית ===
+    "היום": ["--today"],
+    "שבוע": ["--week"],
+    "חודש": ["--month"],
+    "צוות": None,        # = team
+    "שעות": None,        # = hours
+    "לימוד": None,       # = learn
+    "מגמות": None,       # = trends
+    "רצף": None,         # = streak
+    "סריקה": None,       # = scan
+    "השוואה": None,      # = vs
+    "לוג": None,         # = log
+    "עזרה": None,        # = help
 }
 
 
@@ -2505,6 +2518,107 @@ def expand_shortcuts(argv):
         return argv
 
     first = argv[0]
+
+    # === תרגום קיצורים בעברית לאנגלית ===
+    hebrew_to_english = {
+        "צוות": "team", "שעות": "hours", "לימוד": "learn",
+        "מגמות": "trends", "רצף": "streak", "סריקה": "scan",
+        "השוואה": "vs", "לוג": "log", "עזרה": "help",
+    }
+    if first in hebrew_to_english:
+        first = hebrew_to_english[first]
+        argv[0] = first
+
+    # === Smart Mode — מצב חכם ===
+    # אם המילה הראשונה לא מזוהה כפקודה, סורקים את כל המילים
+    # ומנסים להבין מה המשתמש רוצה.
+    # למשל: "תפתח לי פולס יומי לימוד מתחיל" → pulse learn --beginner
+    all_commands = set(SHORTCUTS.keys()) | set(hebrew_to_english.keys())
+    if first not in all_commands and not first.startswith("-") and not first.startswith("/"):
+        # אולי זו משפט חופשי — נסרוק את כל המילים
+        all_words = " ".join(argv).lower()
+
+        # מילות מפתח → פקודה
+        SMART_KEYWORDS = {
+            # פקודות
+            "learn": "learn", "לימוד": "learn", "code guide": "learn",
+            "ללמוד": "learn", "קוד": "learn",
+            "team": "team", "צוות": "team", "contributors": "team",
+            "תורמים": "team",
+            "hours": "hours", "שעות": "hours", "patterns": "hours",
+            "דפוסים": "hours", "זמנים": "hours",
+            "trends": "trends", "מגמות": "trends", "מגמה": "trends",
+            "streak": "streak", "רצף": "streak",
+            "scan": "scan", "סריקה": "scan", "בריאות": "scan",
+            "health": "scan", "quality": "scan", "איכות": "scan",
+            "vs": "vs", "השוואה": "vs", "compare": "vs", "להשוות": "vs",
+            "log": "log", "לוג": "log", "history": "log", "היסטוריה": "log",
+            "help": "help", "עזרה": "help",
+            "multi": "multi", "מולטי": "multi", "ריפו": "multi",
+            "init": "init",
+        }
+
+        # זמנים
+        SMART_TIME = {
+            "today": "--today", "היום": "--today", "יומי": "--today",
+            "daily": "--today",
+            "week": "--week", "שבוע": "--week", "שבועי": "--week",
+            "weekly": "--week",
+            "month": "--month", "חודש": "--month", "חודשי": "--month",
+            "monthly": "--month",
+        }
+
+        # דגלים
+        SMART_FLAGS = {
+            "beginner": "--beginner", "מתחיל": "--beginner",
+            "מתחילים": "--beginner", "הסברים": "--beginner",
+            "json": "--json",
+            "hebrew": "--lang he", "עברית": "--lang he",
+        }
+
+        detected_command = None
+        detected_time = None
+        detected_flags = []
+
+        for keyword, cmd in SMART_KEYWORDS.items():
+            if keyword in all_words:
+                detected_command = cmd
+                break
+
+        for keyword, flag in SMART_TIME.items():
+            if keyword in all_words:
+                detected_time = flag
+                break
+
+        for keyword, flag in SMART_FLAGS.items():
+            if keyword in all_words:
+                detected_flags.append(flag)
+
+        if detected_command:
+            # בונים את הפקודה החדשה
+            new_argv = [detected_command]
+            if detected_flags:
+                for f in detected_flags:
+                    new_argv.extend(f.split())
+            # פקודות מיוחדות מקבלות מספר ימים, לא דגל
+            if detected_time and detected_command in (
+                "team", "hours", "vs", "trends"
+            ):
+                time_to_days = {
+                    "--today": "1", "--week": "7", "--month": "30",
+                }
+                new_argv.append(time_to_days.get(detected_time, "7"))
+            elif detected_time and detected_command not in (
+                "learn", "scan", "help", "streak", "init",
+                "team", "hours", "vs", "trends", "log",
+            ):
+                new_argv.append(detected_time)
+
+            console.print(
+                f"  [dim]→ understood: pulse {' '.join(new_argv)}[/dim]\n"
+            )
+            argv = new_argv
+            first = argv[0]
 
     # פקודות מיוחדות — כל אחת מפעילה פונקציה ייעודית
     if first == "scan":
@@ -2688,7 +2802,7 @@ def main():
     parser.add_argument(
         "--version", "-v",
         action="version",
-        version="ContextPulse 0.8.1",
+        version="ContextPulse 0.9.0",
     )
     parser.add_argument(
         "--html",
