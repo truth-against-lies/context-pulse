@@ -1837,6 +1837,7 @@ def show_help():
     cmds.add_row("pulse streak", "Commit streak + calendar")
     cmds.add_row("pulse trends", "Weekly trends over time")
     cmds.add_row("pulse learn", "Generate code guide (HTML)")
+    cmds.add_row("pulse learn --beginner", "Code guide with explanations")
     cmds.add_row("pulse log", "Pretty git log with icons")
     cmds.add_row("pulse multi PATH", "Scan all repos in a directory")
     cmds.add_row("pulse init", "Create .pulserc config file")
@@ -2107,11 +2108,64 @@ def export_html(commits, period_label, output_path):
     console.print(f"[green]HTML report saved to:[/green] {output_path}")
 
 
-def learn_report(repo_path=".", output_path="learn.html"):
+def _cat_to_hex(cat):
+    """ממיר שם קטגוריה לצבע HEX לשימוש ב-HTML."""
+    color_map = {
+        "HTML": "#f85149", "Style": "#58a6ff", "JavaScript": "#e3b341",
+        "TypeScript": "#3178c6", "Python": "#3fb950", "Ruby": "#f85149",
+        "Go": "#00add8", "Rust": "#f74c00", "Java": "#f89820",
+        "Config": "#bc8cff", "Docs": "#c9d1d9", "Images": "#56d364",
+        "Shell": "#3fb950", "Database": "#58a6ff", "Tests": "#3fb950",
+    }
+    return color_map.get(cat, "#8b949e")
+
+
+# === הסברי מושגים למתחילים ===
+# כשמילת מפתח מופיעה בקוד, אפשר לרחף עליה ולקבל הסבר
+KEYWORD_TIPS = {
+    "def ": "def = defines a function (block of reusable code). Like creating a recipe you can use again and again.",
+    "class ": "class = a blueprint for creating objects. Like a cookie cutter — you define the shape once, then make many cookies.",
+    "import ": "import = loads code from another file/library. Like borrowing a tool from a neighbor instead of building it yourself.",
+    "from ": "from X import Y = loads a specific tool from a library. Instead of bringing the whole toolbox, you just take the screwdriver.",
+    "return ": "return = sends a result back from a function. The function did its job, now it hands you the answer.",
+    "if ": "if = checks a condition. 'If it's raining, take an umbrella.' The code only runs if the condition is true.",
+    "else:": "else = what happens when the 'if' condition is false. 'If raining → umbrella, else → sunglasses.'",
+    "elif ": "elif = 'else if' — another condition to check. Like: 'if hot → AC, elif cold → heater, else → nothing.'",
+    "for ": "for = repeats code for each item in a list. Like: 'for each student in the class, check their homework.'",
+    "while ": "while = keeps repeating as long as a condition is true. Like: 'while hungry, keep eating.'",
+    "try:": "try = attempts to run code that might fail. Like: 'try to open the file — if it doesn't exist, handle the error gracefully.'",
+    "except ": "except = catches an error from 'try'. Instead of crashing, you handle the problem. Like a safety net.",
+    "with ": "with = safely opens a resource (file, connection) and auto-closes it when done. No forgetting to close!",
+    "True": "True = yes, correct, on. A boolean value — the answer to a yes/no question.",
+    "False": "False = no, incorrect, off. The opposite of True.",
+    "None": "None = nothing, empty, no value. Like an empty box — it exists, but there's nothing inside.",
+    "self": "self = refers to the current object. Like saying 'my name' — self.name means 'this object's name'.",
+    "lambda": "lambda = a tiny one-line function. Instead of def + return, you write it in one line.",
+}
+
+# הסבר על סוגי קבצים
+FILE_TYPE_TIPS = {
+    ".py": "Python file — the main programming language of this project",
+    ".js": "JavaScript — makes websites interactive (buttons, animations, data loading)",
+    ".ts": "TypeScript — JavaScript with type safety (catches bugs before running)",
+    ".html": "HTML — the structure/skeleton of a web page (headings, paragraphs, links)",
+    ".css": "CSS — the styling/design of a web page (colors, fonts, layout)",
+    ".json": "JSON — data format for configuration and APIs (like a structured notepad)",
+    ".yml": "YAML — human-readable config format (settings, CI/CD pipelines)",
+    ".yaml": "YAML — human-readable config format (settings, CI/CD pipelines)",
+    ".toml": "TOML — config format popular in Python projects (pyproject.toml)",
+    ".md": "Markdown — formatted text (README files, documentation)",
+    ".sh": "Shell script — terminal commands saved in a file (automation)",
+    ".sql": "SQL — database query language (get/insert/update data)",
+    ".txt": "Plain text file",
+}
+
+
+def learn_report(repo_path=".", output_path="learn.html", beginner=False):
     """
-    pulse learn: יוצר דף HTML שמציג את כל קבצי הקוד בפרויקט
-    עם syntax highlighting, הסברים על פונקציות, ומבנה ויזואלי.
-    כמו ספר לימוד אינטראקטיבי של הפרויקט שלך.
+    pulse learn: יוצר דף HTML אינטראקטיבי שמציג את הקוד של הפרויקט.
+    beginner=False → גרסה מקצועית (נקייה, בלי הסברים)
+    beginner=True  → גרסה למתחילים (tooltips, הסברים, מדריך)
     """
     try:
         repo = Repo(repo_path)
@@ -2122,12 +2176,7 @@ def learn_report(repo_path=".", output_path="learn.html"):
     all_files = repo.git.ls_files().split("\n")
     all_files = [f for f in all_files if f]
 
-    # רק קבצי קוד (לא תמונות, לא בינאריים)
-    code_extensions = {
-        ".py", ".js", ".ts", ".html", ".css", ".jsx", ".tsx",
-        ".rb", ".go", ".rs", ".java", ".sh", ".bash", ".sql",
-        ".json", ".yml", ".yaml", ".toml", ".md", ".txt",
-    }
+    code_extensions = set(FILE_TYPE_TIPS.keys())
     code_files = [
         f for f in all_files
         if Path(f).suffix.lower() in code_extensions
@@ -2135,7 +2184,6 @@ def learn_report(repo_path=".", output_path="learn.html"):
 
     project_name = Path(repo_path).resolve().name
 
-    # === בניית תוכן עניינים וקבצים ===
     toc_html = ""
     files_html = ""
 
@@ -2152,7 +2200,8 @@ def learn_report(repo_path=".", output_path="learn.html"):
         lines = content.split("\n")
         total_lines = len(lines)
         cat = get_category(filepath)
-        color = CATEGORY_COLORS.get(cat, "white")
+        suffix = Path(filepath).suffix.lower()
+        file_tip = FILE_TYPE_TIPS.get(suffix, "") if beginner else ""
 
         # תוכן עניינים
         toc_html += (
@@ -2162,18 +2211,14 @@ def learn_report(repo_path=".", output_path="learn.html"):
             f'<span class="toc-lines">{total_lines} lines</span></a>\n'
         )
 
-        # === ניתוח הקובץ ===
-        # מזהים פונקציות, קלאסים, ייבואים
+        # ניתוח הקובץ
         functions = []
         imports = []
-        comments = []
 
         for i, line in enumerate(lines):
             stripped = line.strip()
             if stripped.startswith("def ") or stripped.startswith("async def "):
-                # שם הפונקציה
                 func_name = stripped.split("(")[0].replace("def ", "").replace("async ", "")
-                # מחפשים docstring
                 docstring = ""
                 if i + 1 < total_lines:
                     next_lines = "\n".join(lines[i+1:i+6])
@@ -2192,31 +2237,41 @@ def learn_report(repo_path=".", output_path="learn.html"):
                 functions.append({"name": f"class {class_name}", "line": i + 1, "doc": ""})
             elif stripped.startswith("import ") or stripped.startswith("from "):
                 imports.append(stripped)
-            elif stripped.startswith("#") and len(stripped) > 5:
-                comments.append({"line": i + 1, "text": stripped})
 
-        # === HTML לקובץ ===
-        # Syntax highlighting פשוט — צובעים מילות מפתח
+        # Syntax highlighting עם tooltips
         highlighted_lines = ""
         for i, line in enumerate(lines, 1):
-            # HTML escape
             safe_line = (
                 line.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
             )
-            # צביעת מילות מפתח
-            for kw in ["def ", "class ", "import ", "from ", "return ",
-                        "if ", "else:", "elif ", "for ", "while ",
-                        "try:", "except ", "with ", "as ", "in ",
-                        "True", "False", "None", "self", "not ", "and ", "or "]:
-                safe_line = safe_line.replace(
-                    kw, f'<span class="kw">{kw}</span>'
-                )
-            # צביעת מחרוזות
+            # מילות מפתח — עם tooltip רק ב-beginner mode
+            if beginner:
+                for kw, tip in KEYWORD_TIPS.items():
+                    if kw in safe_line:
+                        escaped_tip = tip.replace('"', '&quot;')
+                        safe_line = safe_line.replace(
+                            kw,
+                            f'<span class="kw" title="{escaped_tip}">{kw}</span>'
+                        )
+            else:
+                for kw in ["def ", "class ", "import ", "from ", "return ",
+                            "if ", "else:", "elif ", "for ", "while ",
+                            "try:", "except ", "with ", "as ", "in ",
+                            "True", "False", "None", "self"]:
+                    if kw in safe_line:
+                        safe_line = safe_line.replace(
+                            kw, f'<span class="kw">{kw}</span>'
+                        )
+            # הערות
             if "#" in safe_line:
-                parts = safe_line.split("#", 1)
-                safe_line = parts[0] + f'<span class="comment">#{parts[1]}</span>'
+                idx = safe_line.index("#")
+                # בדיקה שזה לא בתוך span
+                before = safe_line[:idx]
+                if 'title="' not in before.split(">")[-1]:
+                    after = safe_line[idx:]
+                    safe_line = before + f'<span class="comment">{after}</span>'
 
             highlighted_lines += (
                 f'<div class="code-line" id="file-{file_idx}-L{i}">'
@@ -2224,28 +2279,36 @@ def learn_report(repo_path=".", output_path="learn.html"):
                 f'<span class="line-code">{safe_line}</span></div>\n'
             )
 
-        # פונקציות sidebar
+        # פונקציות
         func_list = ""
         if functions:
-            func_list = '<div class="func-list"><b>Functions & Classes:</b><ul>'
+            func_list = '<div class="func-list"><b>📋 Functions & Classes:</b><ul>'
             for fn in functions:
                 doc_text = f' — <span class="func-doc">{fn["doc"]}</span>' if fn["doc"] else ""
                 func_list += (
                     f'<li><a href="#file-{file_idx}-L{fn["line"]}">'
-                    f'{fn["name"]}</a> '
+                    f'🔹 {fn["name"]}</a> '
                     f'<span class="func-line">line {fn["line"]}</span>'
                     f'{doc_text}</li>'
                 )
             func_list += "</ul></div>"
 
-        # imports
+        # imports עם הסברים
         imports_html = ""
         if imports:
+            imp_items = []
+            for imp in imports[:8]:
+                imp_items.append(f"<code>{imp}</code>")
             imports_html = (
-                '<div class="imports-box"><b>Dependencies:</b> '
-                + ", ".join(f"<code>{imp}</code>" for imp in imports[:8])
+                '<div class="imports-box"><b>📦 Dependencies (what this file needs):</b><br>'
+                + "<br>".join(imp_items)
                 + "</div>"
             )
+
+        # הסבר על סוג הקובץ
+        file_tip_html = ""
+        if file_tip:
+            file_tip_html = f'<div class="file-tip">💡 {file_tip}</div>'
 
         files_html += f"""
 <div class="file-block" id="file-{file_idx}">
@@ -2253,6 +2316,7 @@ def learn_report(repo_path=".", output_path="learn.html"):
     <span class="file-name">{filepath}</span>
     <span class="file-meta">{cat} · {total_lines} lines · {len(functions)} functions</span>
   </div>
+  {file_tip_html}
   {imports_html}
   {func_list}
   <div class="code-block">
@@ -2272,6 +2336,8 @@ def learn_report(repo_path=".", output_path="learn.html"):
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
          background: #0d1117; color: #c9d1d9; display: flex; }}
+
+  /* === Sidebar === */
   .sidebar {{ width: 280px; background: #161b22; border-right: 1px solid #21262d;
               height: 100vh; overflow-y: auto; position: fixed; padding: 1rem; }}
   .sidebar h2 {{ color: #58a6ff; font-size: 1.1rem; margin-bottom: 1rem; }}
@@ -2283,7 +2349,19 @@ def learn_report(repo_path=".", output_path="learn.html"):
   .toc-item:hover {{ background: #21262d; }}
   .toc-cat {{ font-size: 0.7rem; font-weight: 600; margin-right: 0.3rem; }}
   .toc-lines {{ color: #484f58; font-size: 0.75rem; }}
+
+  /* === Main content === */
   .main {{ margin-left: 280px; padding: 2rem; flex: 1; max-width: 900px; }}
+
+  /* === Beginner guide === */
+  .guide {{ background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+            padding: 1.25rem; margin-bottom: 2rem; }}
+  .guide h2 {{ color: #3fb950; font-size: 1.1rem; margin-bottom: 0.75rem; border: none; }}
+  .guide p {{ font-size: 0.9rem; line-height: 1.6; margin-bottom: 0.5rem; }}
+  .guide .tip {{ display: flex; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.85rem; }}
+  .guide .tip-icon {{ font-size: 1.1rem; }}
+
+  /* === File blocks === */
   .file-block {{ margin-bottom: 3rem; border: 1px solid #21262d; border-radius: 8px;
                  overflow: hidden; }}
   .file-header {{ background: #161b22; padding: 0.75rem 1rem; display: flex;
@@ -2291,52 +2369,88 @@ def learn_report(repo_path=".", output_path="learn.html"):
                   border-bottom: 1px solid #21262d; }}
   .file-name {{ color: #58a6ff; font-weight: 600; font-size: 1rem; }}
   .file-meta {{ color: #8b949e; font-size: 0.8rem; }}
+  .file-tip {{ padding: 0.6rem 1rem; background: #1a2332; border-bottom: 1px solid #21262d;
+               font-size: 0.85rem; color: #e3b341; }}
   .imports-box {{ padding: 0.75rem 1rem; background: #0d1117; border-bottom: 1px solid #21262d;
-                  font-size: 0.85rem; color: #8b949e; }}
-  .imports-box code {{ background: #1f2937; padding: 1px 6px; border-radius: 3px;
+                  font-size: 0.85rem; color: #8b949e; line-height: 1.8; }}
+  .imports-box code {{ background: #1f2937; padding: 2px 6px; border-radius: 3px;
                        font-size: 0.8rem; color: #bc8cff; }}
   .func-list {{ padding: 0.75rem 1rem; background: #0d1117; border-bottom: 1px solid #21262d; }}
   .func-list b {{ color: #3fb950; font-size: 0.85rem; }}
   .func-list ul {{ list-style: none; margin-top: 0.3rem; }}
-  .func-list li {{ font-size: 0.85rem; padding: 0.15rem 0; }}
+  .func-list li {{ font-size: 0.85rem; padding: 0.2rem 0; }}
   .func-list a {{ color: #79c0ff; text-decoration: none; }}
   .func-list a:hover {{ text-decoration: underline; }}
   .func-line {{ color: #484f58; font-size: 0.75rem; }}
   .func-doc {{ color: #8b949e; font-style: italic; }}
+
+  /* === Code === */
   .code-block {{ overflow-x: auto; font-family: 'SF Mono', 'Fira Code', monospace;
-                 font-size: 0.82rem; line-height: 1.5; }}
+                 font-size: 0.82rem; line-height: 1.6; }}
   .code-line {{ display: flex; padding: 0 1rem; }}
   .code-line:hover {{ background: #161b22; }}
-  .line-num {{ color: #484f58; min-width: 40px; text-align: right; padding-right: 1rem;
+  .line-num {{ color: #484f58; min-width: 45px; text-align: right; padding-right: 1rem;
                user-select: none; }}
   .line-code {{ white-space: pre; }}
-  .kw {{ color: #ff7b72; }}
+
+  /* Keywords with tooltips */
+  .kw {{ color: #ff7b72; cursor: help; position: relative; }}
+  .kw:hover {{ text-decoration: underline dotted; }}
+  .kw[title]:hover::after {{
+    content: attr(title);
+    position: absolute; bottom: 100%; left: 0;
+    background: #1f2937; color: #e3b341; border: 1px solid #30363d;
+    padding: 8px 12px; border-radius: 6px; font-size: 0.8rem;
+    white-space: normal; width: 300px; z-index: 100;
+    font-family: -apple-system, sans-serif; line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }}
   .comment {{ color: #8b949e; font-style: italic; }}
+
   .footer {{ text-align: center; color: #484f58; font-size: 0.8rem; padding: 2rem;
              margin-left: 280px; }}
   .footer a {{ color: #58a6ff; text-decoration: none; }}
+
   @media print {{
     .sidebar {{ display: none; }}
     .main {{ margin-left: 0; }}
     body {{ background: white; color: #1a1a1a; }}
-    .file-block {{ border: 1px solid #ddd; }}
+    .file-block {{ border: 1px solid #ddd; page-break-inside: avoid; }}
     .file-header {{ background: #f3f3f3; }}
-    .code-line:hover {{ background: transparent; }}
+    .guide {{ background: #f6f8fa; border-color: #ddd; }}
   }}
 </style>
 </head>
 <body>
 <div class="sidebar">
-  <div class="project-name">{project_name}</div>
+  <div class="project-name">📖 {project_name}</div>
   <div class="file-count">{len(code_files)} code files</div>
   <h2>Files</h2>
   {toc_html}
 </div>
 <div class="main">
-  <h1 style="color:#58a6ff; margin-bottom:0.5rem">Code Guide</h1>
-  <p style="color:#8b949e; margin-bottom:2rem">
-    Generated by ContextPulse — click any function to jump to its code
+  <h1 style="color:#58a6ff; margin-bottom:0.5rem">{"📖 Code Guide — Beginner Mode" if beginner else "📖 Code Guide"}</h1>
+  <p style="color:#8b949e; margin-bottom:1.5rem">
+    {"Interactive code explorer — hover on colored keywords for explanations" if beginner else "Project code explorer — click functions to jump to code"}
   </p>
+
+  {"" if not beginner else '''<div class="guide">
+    <h2>🎓 How to Read This Guide</h2>
+    <div class="tip"><span class="tip-icon">🔴</span>
+      <span><b>Red words</b> = Python keywords (def, if, for, return...).
+      <b>Hover over them</b> to see what they mean!</span></div>
+    <div class="tip"><span class="tip-icon">💜</span>
+      <span><b>Purple text</b> = imports (libraries/tools the file uses)</span></div>
+    <div class="tip"><span class="tip-icon">⬜</span>
+      <span><b>Gray italic text</b> = comments (notes the programmer left)</span></div>
+    <div class="tip"><span class="tip-icon">🔹</span>
+      <span><b>Function list</b> = click any function name to jump to its code</span></div>
+    <div class="tip"><span class="tip-icon">💡</span>
+      <span><b>Yellow tip</b> = explains what type of file this is</span></div>
+    <div class="tip"><span class="tip-icon">📋</span>
+      <span><b>Functions</b> = the "workers" inside each file. Each does one job.</span></div>
+  </div>'''}
+
   {files_html}
 </div>
 <div class="footer">
@@ -2348,18 +2462,6 @@ def learn_report(repo_path=".", output_path="learn.html"):
     Path(output_path).write_text(html, encoding="utf-8")
     console.print(f"[green]Code guide saved to:[/green] {output_path}")
     console.print(f"[dim]Open in browser to explore your code.[/dim]")
-
-
-def _cat_to_hex(cat):
-    """ממיר שם קטגוריה לצבע HEX לשימוש ב-HTML."""
-    color_map = {
-        "HTML": "#f85149", "Style": "#58a6ff", "JavaScript": "#e3b341",
-        "TypeScript": "#3178c6", "Python": "#3fb950", "Ruby": "#f85149",
-        "Go": "#00add8", "Rust": "#f74c00", "Java": "#f89820",
-        "Config": "#bc8cff", "Docs": "#c9d1d9", "Images": "#56d364",
-        "Shell": "#3fb950", "Database": "#58a6ff", "Tests": "#3fb950",
-    }
-    return color_map.get(cat, "#8b949e")
 
 
 # === מיפוי קיצורים עצלניים ===
@@ -2470,11 +2572,12 @@ def expand_shortcuts(argv):
         return None
 
     if first == "learn":
-        repo = argv[1] if len(argv) > 1 else "."
-        output = "learn.html"
-        if len(argv) > 2:
-            output = argv[2]
-        learn_report(repo, output)
+        beginner = "--beginner" in argv or "-b" in argv
+        # מסננים את הדגל מהארגומנטים
+        rest = [a for a in argv[1:] if a not in ("--beginner", "-b")]
+        repo = rest[0] if rest else "."
+        output = rest[1] if len(rest) > 1 else "learn.html"
+        learn_report(repo, output, beginner=beginner)
         return None
 
     if first == "trends":
@@ -2585,7 +2688,7 @@ def main():
     parser.add_argument(
         "--version", "-v",
         action="version",
-        version="ContextPulse 0.8.0",
+        version="ContextPulse 0.8.1",
     )
     parser.add_argument(
         "--html",
