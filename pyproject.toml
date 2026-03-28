@@ -32,8 +32,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ethankinng666-coder/context-pulse"
-Issues = "https://github.com/ethankinng666-coder/context-pulse/issues"
+Homepage = "https://github.com/truth-against-lies/context-pulse"
+Issues = "https://github.com/truth-against-lies/context-pulse/issues"
 
 [project.scripts]
 pulse = "contextpulse.main:main"

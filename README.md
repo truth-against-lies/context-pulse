@@ -26,7 +26,7 @@ pip install contextpulse
 Or install from source:
 
 ```bash
-git clone https://github.com/ethankinng666-coder/context-pulse.git
+git clone https://github.com/truth-against-lies/context-pulse.git
 cd context-pulse
 pip install -r requirements.txt
 python main.py
