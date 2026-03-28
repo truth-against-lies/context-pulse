@@ -1,19 +1,28 @@
 """
 ContextPulse - Turn your Git history into a human story.
 
-Usage:
+Usage (full flags):
     pulse                        # last 7 days (default)
     pulse --today                # today only
     pulse --days 3               # last 3 days
-    pulse --week                 # last 7 days (same as default)
     pulse --month                # last 30 days
     pulse --since 2026-03-01     # from a specific date
     pulse --author "John"        # filter by author name
     pulse --export report.md     # save as Markdown file
-    pulse --json                 # output as JSON (for other tools)
+    pulse --json                 # output as JSON
     pulse --compare main..dev    # compare two branches
-    pulse --interactive          # choose options from a menu
+    pulse --interactive          # choose from a menu
     pulse ~/code/my-project      # scan a specific repo
+
+Lazy shortcuts (same thing, less typing):
+    pulse today                  # = pulse --today
+    pulse week                   # = pulse --week
+    pulse month                  # = pulse --month
+    pulse since 2026-03-01       # = pulse --since 2026-03-01
+    pulse json                   # = pulse --json
+    pulse i                      # = pulse --interactive
+    pulse scan                   # code quality + structure report
+    pulse scan ~/code/project    # scan a specific repo
 """
 
 # === ייבוא ספריות ===
@@ -655,8 +664,290 @@ def interactive_mode():
         export_json(commits, period_label)
 
 
+def scan_code(repo_path="."):
+    """
+    פקודת scan: מנתח את הקוד בריפו ומראה דוח מבנה + איכות.
+    שימושי ללומדים שרוצים להבין פרויקט, ולמפתחים שרוצים לבדוק איכות.
+    """
+    try:
+        repo = Repo(repo_path)
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        console.print(f"[red]Error:[/red] '{repo_path}' is not a Git repository.")
+        return
+
+    console.print()
+    console.print(
+        Panel.fit(
+            "[bold cyan]ContextPulse[/bold cyan] - Code Scanner",
+            border_style="cyan",
+        )
+    )
+
+    # === סריקת כל הקבצים בריפו ===
+    # repo.git.ls_files() = מחזיר את כל הקבצים שגיט עוקב אחריהם
+    all_files = repo.git.ls_files().split("\n")
+    all_files = [f for f in all_files if f]  # מסנן שורות ריקות
+
+    # === סטטיסטיקות כלליות ===
+    total_files = len(all_files)
+    categories = Counter()
+    file_sizes = {}
+
+    for filepath in all_files:
+        cat = get_category(filepath)
+        categories[cat] += 1
+        # בודקים גודל קובץ
+        full_path = Path(repo_path) / filepath
+        if full_path.exists():
+            size = full_path.stat().st_size
+            file_sizes[filepath] = size
+
+    # === טבלת סוגי קבצים ===
+    console.print()
+    console.print(f"[bold]Project: {Path(repo_path).resolve().name}[/bold]")
+    console.print(f"Total files tracked by Git: {total_files}")
+    console.print()
+
+    cat_table = Table(
+        title="File Types in Project",
+        show_header=True,
+        header_style="bold blue",
+    )
+    cat_table.add_column("Type", style="bold")
+    cat_table.add_column("Files", justify="right", style="cyan")
+    cat_table.add_column("%", justify="right", style="green")
+
+    for cat_name, count in categories.most_common():
+        color = CATEGORY_COLORS.get(cat_name, "white")
+        pct = round(count / total_files * 100)
+        cat_table.add_row(
+            f"[{color}]{cat_name}[/{color}]",
+            f"[{color}]{count}[/{color}]",
+            f"[{color}]{pct}%[/{color}]",
+        )
+
+    console.print(cat_table)
+
+    # === הקבצים הכי גדולים ===
+    if file_sizes:
+        console.print()
+        big_table = Table(
+            title="Largest Files",
+            show_header=True,
+            header_style="bold red",
+        )
+        big_table.add_column("#", style="dim", width=3)
+        big_table.add_column("File", style="white")
+        big_table.add_column("Size", justify="right", style="yellow")
+
+        sorted_sizes = sorted(
+            file_sizes.items(), key=lambda x: x[1], reverse=True
+        )
+        for i, (filepath, size) in enumerate(sorted_sizes[:10], 1):
+            if size >= 1024 * 1024:
+                size_str = f"{size / 1024 / 1024:.1f} MB"
+            elif size >= 1024:
+                size_str = f"{size / 1024:.1f} KB"
+            else:
+                size_str = f"{size} B"
+            big_table.add_row(str(i), filepath, size_str)
+
+        console.print(big_table)
+
+    # === בדיקות איכות ===
+    console.print()
+    console.print("[bold]Quality Check[/bold]")
+    issues = []
+    suggestions = []
+
+    # בדיקה 1: האם יש README?
+    has_readme = any(f.lower().startswith("readme") for f in all_files)
+    if has_readme:
+        console.print("  [green]✓[/green] README found")
+    else:
+        console.print("  [red]✗[/red] No README file")
+        issues.append("Add a README.md to explain your project")
+
+    # בדיקה 2: האם יש .gitignore?
+    has_gitignore = ".gitignore" in all_files
+    if has_gitignore:
+        console.print("  [green]✓[/green] .gitignore found")
+    else:
+        console.print("  [red]✗[/red] No .gitignore file")
+        issues.append("Add .gitignore to avoid tracking unnecessary files")
+
+    # בדיקה 3: האם יש בדיקות?
+    test_files = [f for f in all_files if "test" in f.lower()]
+    if test_files:
+        console.print(f"  [green]✓[/green] Tests found ({len(test_files)} test files)")
+    else:
+        console.print("  [yellow]![/yellow] No test files found")
+        suggestions.append("Consider adding tests to catch bugs early")
+
+    # בדיקה 4: האם יש requirements.txt או pyproject.toml?
+    has_deps = any(
+        f in all_files
+        for f in ["requirements.txt", "pyproject.toml", "setup.py", "package.json"]
+    )
+    if has_deps:
+        console.print("  [green]✓[/green] Dependency file found")
+    else:
+        console.print("  [yellow]![/yellow] No dependency file found")
+        suggestions.append("Add requirements.txt or pyproject.toml")
+
+    # בדיקה 5: האם יש LICENSE?
+    has_license = any(f.lower().startswith("license") for f in all_files)
+    if has_license:
+        console.print("  [green]✓[/green] LICENSE found")
+    else:
+        console.print("  [yellow]![/yellow] No LICENSE file")
+        suggestions.append("Add a LICENSE file (MIT is a good default)")
+
+    # בדיקה 6: קבצים גדולים מדי
+    big_files = [
+        f for f, s in file_sizes.items()
+        if s > 1024 * 1024  # יותר מ-1MB
+    ]
+    if big_files:
+        console.print(
+            f"  [yellow]![/yellow] {len(big_files)} files larger than 1MB"
+        )
+        suggestions.append(
+            "Large files slow down Git. Consider Git LFS for big files"
+        )
+    else:
+        console.print("  [green]✓[/green] No oversized files")
+
+    # === מבנה התיקיות ===
+    console.print()
+    dirs = set()
+    for f in all_files:
+        parts = Path(f).parts
+        if len(parts) > 1:
+            dirs.add(parts[0])
+
+    if dirs:
+        console.print("[bold]Project Structure[/bold]")
+        for d in sorted(dirs):
+            dir_files = [f for f in all_files if f.startswith(d + "/")]
+            console.print(f"  [cyan]{d}/[/cyan] ({len(dir_files)} files)")
+
+        root_files = [f for f in all_files if "/" not in f]
+        if root_files:
+            console.print(f"  [dim](root)[/dim] ({len(root_files)} files)")
+
+    # === סיכום ===
+    console.print()
+    score = 0
+    checks = 6
+    if has_readme:
+        score += 1
+    if has_gitignore:
+        score += 1
+    if test_files:
+        score += 1
+    if has_deps:
+        score += 1
+    if has_license:
+        score += 1
+    if not big_files:
+        score += 1
+
+    if score == checks:
+        color = "green"
+        grade = "Excellent!"
+    elif score >= 4:
+        color = "cyan"
+        grade = "Good"
+    elif score >= 2:
+        color = "yellow"
+        grade = "Needs work"
+    else:
+        color = "red"
+        grade = "Needs attention"
+
+    console.print(
+        Panel(
+            f"[{color}]Score: {score}/{checks} — {grade}[/{color}]",
+            title="Project Health",
+            border_style=color,
+        )
+    )
+
+    if issues:
+        console.print()
+        console.print("[bold red]Issues:[/bold red]")
+        for issue in issues:
+            console.print(f"  [red]•[/red] {issue}")
+
+    if suggestions:
+        console.print()
+        console.print("[bold yellow]Suggestions:[/bold yellow]")
+        for sug in suggestions:
+            console.print(f"  [yellow]•[/yellow] {sug}")
+
+    console.print()
+
+
+# === מיפוי קיצורים עצלניים ===
+# במקום pulse --today אפשר לכתוב pulse today
+# המילון הזה מתרגם את המילה הקצרה לדגל המלא
+SHORTCUTS = {
+    "today": ["--today"],
+    "t": ["--today"],
+    "week": ["--week"],
+    "w": ["--week"],
+    "month": ["--month"],
+    "m": ["--month"],
+    "since": None,       # מטופל מיוחד — צריך תאריך אחריו
+    "s": None,
+    "json": ["--json"],
+    "j": ["--json"],
+    "interactive": ["--interactive"],
+    "i": ["--interactive"],
+    "scan": None,        # פקודה מיוחדת — ניתוח קוד
+}
+
+
+def expand_shortcuts(argv):
+    """
+    מתרגם קיצורים לדגלים מלאים.
+    למשל: ["today"] → ["--today"]
+           ["since", "2026-03-01"] → ["--since", "2026-03-01"]
+           ["scan"] → מפעיל scan_code ומחזיר None
+    """
+    if not argv:
+        return argv
+
+    first = argv[0]
+
+    # scan = פקודה מיוחדת
+    if first == "scan":
+        repo = argv[1] if len(argv) > 1 else "."
+        scan_code(repo)
+        return None  # סימן שכבר טיפלנו
+
+    # since/s = צריך את התאריך שאחריו
+    if first in ("since", "s") and len(argv) > 1:
+        return ["--since", argv[1]] + argv[2:]
+
+    # קיצור רגיל
+    if first in SHORTCUTS and SHORTCUTS[first] is not None:
+        return SHORTCUTS[first] + argv[1:]
+
+    return argv
+
+
 def main():
     """הפונקציה הראשית."""
+
+    # === תרגום קיצורים ===
+    # sys.argv[1:] = מה שהמשתמש כתב אחרי "pulse"
+    # למשל: pulse today → sys.argv = ["pulse", "today"] → [1:] = ["today"]
+    expanded = expand_shortcuts(sys.argv[1:])
+    if expanded is None:
+        return  # scan כבר רץ
+
     parser = argparse.ArgumentParser(
         prog="pulse",
         description="ContextPulse - Turn your Git history into a human story.",
@@ -727,7 +1018,7 @@ def main():
         help="Interactive mode - choose options from a menu",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(expanded)
 
     # === מצב אינטראקטיבי ===
     if args.interactive:
