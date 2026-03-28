@@ -131,6 +131,10 @@ def get_commits(repo_path=".", days=7, author_filter=None):
 
         changed_files = list(commit.stats.files.keys())
 
+        # שורות שנוספו/נמחקו — commit.stats.total נותן סה"כ
+        insertions = commit.stats.total.get("insertions", 0)
+        deletions = commit.stats.total.get("deletions", 0)
+
         commit_dt = datetime.fromtimestamp(commit.committed_date)
         commits.append({
             "hash": commit.hexsha[:7],
@@ -142,6 +146,8 @@ def get_commits(repo_path=".", days=7, author_filter=None):
             "weekday": commit_dt.strftime("%A"),
             "files_changed": len(changed_files),
             "files": changed_files,
+            "insertions": insertions,
+            "deletions": deletions,
         })
 
     return commits
@@ -451,6 +457,17 @@ def display_report(commits, period_label):
 
     # === גרף פעילות יומי ===
     display_activity_chart(commits)
+
+    # === Diff Summary — שורות שנוספו/נמחקו ===
+    total_insertions = sum(c.get("insertions", 0) for c in commits)
+    total_deletions = sum(c.get("deletions", 0) for c in commits)
+    if total_insertions > 0 or total_deletions > 0:
+        console.print()
+        console.print(
+            f"  [green]+{total_insertions} lines added[/green]  "
+            f"[red]-{total_deletions} lines removed[/red]  "
+            f"[dim](net: {total_insertions - total_deletions:+d})[/dim]"
+        )
 
     # === שורת סיכום ===
     total_files = sum(c["files_changed"] for c in commits)
@@ -1197,6 +1214,128 @@ def scan_code(repo_path="."):
     console.print()
 
 
+def multi_report(base_path=".", days=7):
+    """
+    pulse multi: סורק כמה ריפו ביחד ומציג סיכום משולב.
+    מחפש את כל תיקיות ה-Git בתוך הנתיב שניתן.
+    למשל: pulse multi ~/code → סורק את כל הפרויקטים בתוך ~/code
+    """
+    base = Path(base_path).resolve()
+
+    if not base.is_dir():
+        console.print(f"[red]Error:[/red] '{base_path}' is not a directory.")
+        return
+
+    # מחפשים תיקיות .git
+    repos = []
+    for item in sorted(base.iterdir()):
+        if item.is_dir() and (item / ".git").exists():
+            repos.append(item)
+
+    if not repos:
+        console.print(
+            f"[yellow]No Git repositories found in {base_path}[/yellow]"
+        )
+        return
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[bold cyan]Multi-Repo Report[/bold cyan]\n"
+            f"[dim]{base} — last {days} days[/dim]",
+            subtitle=f"{len(repos)} repositories",
+        )
+    )
+    console.print()
+
+    table = Table(
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("Repository", style="bold")
+    table.add_column("Commits", justify="right", style="cyan")
+    table.add_column("Files", justify="right", style="green")
+    table.add_column("+Lines", justify="right", style="green")
+    table.add_column("-Lines", justify="right", style="red")
+    table.add_column("Last Commit", style="dim")
+
+    total_commits = 0
+    total_files = 0
+
+    for repo_path in repos:
+        try:
+            commits = get_commits(str(repo_path), days)
+            commit_count = len(commits)
+            file_count = sum(c["files_changed"] for c in commits)
+            ins = sum(c.get("insertions", 0) for c in commits)
+            dels = sum(c.get("deletions", 0) for c in commits)
+            last = commits[0]["date_short"] if commits else "—"
+            total_commits += commit_count
+            total_files += file_count
+
+            # צבע לפי פעילות
+            name = repo_path.name
+            if commit_count == 0:
+                name = f"[dim]{name}[/dim]"
+
+            table.add_row(
+                name,
+                str(commit_count) if commit_count > 0 else "[dim]—[/dim]",
+                str(file_count) if file_count > 0 else "[dim]—[/dim]",
+                f"+{ins}" if ins > 0 else "[dim]—[/dim]",
+                f"-{dels}" if dels > 0 else "[dim]—[/dim]",
+                last,
+            )
+        except Exception:
+            table.add_row(
+                repo_path.name, "[red]error[/red]", "", "", "", ""
+            )
+
+    console.print(table)
+    console.print()
+    console.print(
+        f"  [bold]Total:[/bold] {total_commits} commits across "
+        f"{len(repos)} repos, {total_files} file changes"
+    )
+    console.print()
+
+
+def init_config(repo_path="."):
+    """
+    pulse init: יוצר קובץ .pulserc בריפו עם הגדרות ברירת מחדל.
+    ככה לא צריך לכתוב --days 30 כל פעם — הגדרות נשמרות לפרויקט.
+    """
+    config_path = Path(repo_path) / ".pulserc"
+
+    if config_path.exists():
+        console.print(
+            f"[yellow].pulserc already exists in {repo_path}[/yellow]"
+        )
+        console.print("Edit it manually or delete it to recreate.")
+        return
+
+    default_config = """# ContextPulse Configuration
+# This file sets default options for this repository.
+# Delete any line to use the global default.
+
+# How many days to look back (default: 7)
+days = 7
+
+# Default export format: none, md, json
+export = none
+
+# Show logo: true, false
+logo = true
+"""
+
+    config_path.write_text(default_config, encoding="utf-8")
+    console.print(f"[green]Created .pulserc in {repo_path}[/green]")
+    console.print("Edit it to set your preferred defaults for this project.")
+    console.print()
+    console.print("[dim]Tip: Add .pulserc to .gitignore if you don't want "
+                  "to share your settings.[/dim]")
+
+
 # === מיפוי קיצורים עצלניים ===
 # במקום pulse --today אפשר לכתוב pulse today
 # המילון הזה מתרגם את המילה הקצרה לדגל המלא
@@ -1217,6 +1356,8 @@ SHORTCUTS = {
     "team": None,        # פקודה מיוחדת — דוח צוות
     "hours": None,       # פקודה מיוחדת — דפוסי עבודה
     "vs": None,          # פקודה מיוחדת — השוואת תקופות
+    "multi": None,       # פקודה מיוחדת — ריבוי ריפו
+    "init": None,        # פקודה מיוחדת — הגדרות לפרויקט
 }
 
 
@@ -1266,6 +1407,19 @@ def expand_shortcuts(argv):
         elif len(argv) > 1:
             repo = argv[1]
         vs_report(repo, days)
+        return None
+
+    if first == "multi":
+        path = argv[1] if len(argv) > 1 else "."
+        days = 7
+        if len(argv) > 2 and argv[2].isdigit():
+            days = int(argv[2])
+        multi_report(path, days)
+        return None
+
+    if first == "init":
+        repo = argv[1] if len(argv) > 1 else "."
+        init_config(repo)
         return None
 
     # since/s = צריך את התאריך שאחריו
