@@ -1836,6 +1836,7 @@ def show_help():
     cmds.add_row("pulse vs", "Compare current vs previous period")
     cmds.add_row("pulse streak", "Commit streak + calendar")
     cmds.add_row("pulse trends", "Weekly trends over time")
+    cmds.add_row("pulse learn", "Generate code guide (HTML)")
     cmds.add_row("pulse log", "Pretty git log with icons")
     cmds.add_row("pulse multi PATH", "Scan all repos in a directory")
     cmds.add_row("pulse init", "Create .pulserc config file")
@@ -1931,72 +1932,434 @@ def export_html(commits, period_label, output_path):
             f"<td>{c['files_changed']}</td></tr>\n"
         )
 
+    # === Pie Chart ב-SVG ===
+    # SVG = פורמט ציור וקטורי. אנחנו מציירים עיגול עם "פרוסות"
+    # כל פרוסה = קטגוריה. הגודל שלה = אחוז מהקומיטים
+    pie_colors = [
+        "#f85149", "#58a6ff", "#e3b341", "#3fb950", "#bc8cff",
+        "#79c0ff", "#ff7b72", "#d2a8ff", "#56d364", "#ffa657",
+    ]
+    total_cat = sum(d["commits"] for d in categories.values())
+    pie_slices = ""
+    legend_items = ""
+    offset = 0
+    for i, (cat_name, data) in enumerate(sorted_cats):
+        pct = data["commits"] / total_cat * 100 if total_cat > 0 else 0
+        color = pie_colors[i % len(pie_colors)]
+        # SVG circle uses stroke-dasharray to create pie slices
+        circumference = 2 * 3.14159 * 45  # radius=45
+        dash = pct / 100 * circumference
+        gap = circumference - dash
+        pie_slices += (
+            f'<circle r="45" cx="60" cy="60" fill="transparent" '
+            f'stroke="{color}" stroke-width="30" '
+            f'stroke-dasharray="{dash:.1f} {gap:.1f}" '
+            f'stroke-dashoffset="-{offset:.1f}" />\n'
+        )
+        offset += dash
+        legend_items += (
+            f'<div class="legend-item">'
+            f'<span class="legend-color" style="background:{color}"></span>'
+            f'{cat_name} ({pct:.0f}%)</div>\n'
+        )
+
+    # === Hour heatmap ===
+    hour_counts = Counter(c.get("hour", 0) for c in commits)
+    max_hour_count = max(hour_counts.values()) if hour_counts else 1
+    hour_cells = ""
+    for h in range(24):
+        count = hour_counts.get(h, 0)
+        intensity = count / max_hour_count if max_hour_count > 0 else 0
+        # ירוק בהיר לכהה לפי עומס
+        r = int(13 + (35 - 13) * (1 - intensity))
+        g = int(17 + (185 - 17) * intensity)
+        b = int(23 + (54 - 23) * intensity)
+        bg = f"rgb({r},{g},{b})"
+        hour_cells += (
+            f'<div class="hour-cell" style="background:{bg}" '
+            f'title="{h:02d}:00 — {count} commits">{h}</div>\n'
+        )
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ContextPulse Report — {period_label}</title>
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-         background: #0d1117; color: #c9d1d9; padding: 2rem; max-width: 960px; margin: auto; }}
-  h1 {{ color: #58a6ff; margin-bottom: 0.5rem; }}
-  h2 {{ color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #21262d; padding-bottom: 0.5rem; }}
-  .summary {{ background: #161b22; border: 1px solid #30363d; border-radius: 6px;
-              padding: 1rem; margin: 1rem 0; }}
-  .stats {{ display: flex; gap: 2rem; margin: 1rem 0; }}
-  .stat {{ background: #161b22; border: 1px solid #30363d; border-radius: 6px;
-           padding: 1rem; text-align: center; flex: 1; }}
-  .stat .number {{ font-size: 2rem; font-weight: bold; color: #58a6ff; }}
-  .stat .label {{ color: #8b949e; font-size: 0.85rem; }}
+         background: #0d1117; color: #c9d1d9; padding: 2rem; max-width: 1000px; margin: auto; }}
+  h1 {{ color: #58a6ff; margin-bottom: 0.25rem; font-size: 2rem; }}
+  h2 {{ color: #58a6ff; margin: 2.5rem 0 1rem; border-bottom: 1px solid #21262d;
+        padding-bottom: 0.5rem; font-size: 1.3rem; }}
+  .subtitle {{ color: #8b949e; margin-bottom: 1.5rem; }}
+  .summary {{ background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+              padding: 1.25rem; margin: 1.5rem 0; font-size: 1.05rem; line-height: 1.6; }}
+  .stats {{ display: flex; gap: 1rem; margin: 1.5rem 0; flex-wrap: wrap; }}
+  .stat {{ background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+           padding: 1.25rem 1rem; text-align: center; flex: 1; min-width: 120px;
+           transition: transform 0.2s; }}
+  .stat:hover {{ transform: translateY(-2px); border-color: #58a6ff; }}
+  .stat .number {{ font-size: 2.2rem; font-weight: 700; }}
+  .stat .label {{ color: #8b949e; font-size: 0.8rem; margin-top: 0.25rem; }}
+  .blue {{ color: #58a6ff; }}
   .green {{ color: #3fb950; }}
   .red {{ color: #f85149; }}
   table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
-  th {{ background: #161b22; color: #58a6ff; text-align: left; padding: 0.75rem; }}
+  th {{ background: #161b22; color: #58a6ff; text-align: left; padding: 0.75rem;
+        font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }}
   td {{ padding: 0.75rem; border-bottom: 1px solid #21262d; }}
   tr:hover {{ background: #161b22; }}
-  code {{ background: #1f2937; padding: 2px 6px; border-radius: 3px; font-size: 0.9rem; }}
-  .bar-row {{ display: flex; align-items: center; margin: 0.3rem 0; }}
+  code {{ background: #1f2937; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; color: #79c0ff; }}
+  .bar-row {{ display: flex; align-items: center; margin: 0.4rem 0; }}
   .bar-label {{ width: 100px; font-size: 0.85rem; color: #8b949e; }}
   .bar {{ background: linear-gradient(90deg, #238636, #3fb950); color: white;
-          padding: 4px 8px; border-radius: 3px; font-size: 0.8rem; min-width: 30px; }}
-  .footer {{ margin-top: 3rem; color: #484f58; font-size: 0.8rem; text-align: center; }}
+          padding: 6px 10px; border-radius: 4px; font-size: 0.8rem; min-width: 35px;
+          transition: width 1s ease-out; }}
+  .two-col {{ display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }}
+  .two-col > div {{ flex: 1; min-width: 280px; }}
+  .pie-container {{ display: flex; align-items: center; gap: 2rem; flex-wrap: wrap; }}
+  .legend-item {{ display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0;
+                  font-size: 0.9rem; }}
+  .legend-color {{ width: 12px; height: 12px; border-radius: 3px; display: inline-block; }}
+  .hour-grid {{ display: flex; gap: 3px; flex-wrap: wrap; margin: 0.5rem 0; }}
+  .hour-cell {{ width: 38px; height: 38px; border-radius: 4px; display: flex;
+                align-items: center; justify-content: center; font-size: 0.75rem;
+                color: #8b949e; cursor: default; }}
+  .footer {{ margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #21262d;
+             color: #484f58; font-size: 0.8rem; text-align: center; }}
+  .footer a {{ color: #58a6ff; text-decoration: none; }}
+  @media print {{
+    body {{ background: white; color: #1a1a1a; }}
+    .stat {{ border: 1px solid #ddd; }}
+    .stat .number {{ color: #333; }}
+    .blue {{ color: #0969da; }}
+    h1, h2 {{ color: #0969da; }}
+    th {{ background: #f3f3f3; color: #333; }}
+    td {{ border-bottom: 1px solid #eee; }}
+    .summary {{ background: #f6f8fa; border-color: #ddd; }}
+    .bar {{ background: #2da44e; }}
+  }}
+  @keyframes countUp {{ from {{ opacity: 0; transform: translateY(10px); }}
+                        to {{ opacity: 1; transform: translateY(0); }} }}
+  .stat {{ animation: countUp 0.5s ease-out; }}
+  .stat:nth-child(2) {{ animation-delay: 0.1s; }}
+  .stat:nth-child(3) {{ animation-delay: 0.2s; }}
+  .stat:nth-child(4) {{ animation-delay: 0.3s; }}
+  .stat:nth-child(5) {{ animation-delay: 0.4s; }}
 </style>
 </head>
 <body>
 <h1>ContextPulse</h1>
-<p style="color:#8b949e">{period_label} — generated {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+<p class="subtitle">{period_label} — generated {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
 
 <div class="summary">{summary}</div>
 
 <div class="stats">
-  <div class="stat"><div class="number">{len(commits)}</div><div class="label">Commits</div></div>
-  <div class="stat"><div class="number">{len(authors)}</div><div class="label">Authors</div></div>
-  <div class="stat"><div class="number">{total_files}</div><div class="label">File Changes</div></div>
+  <div class="stat"><div class="number blue">{len(commits)}</div><div class="label">Commits</div></div>
+  <div class="stat"><div class="number blue">{len(authors)}</div><div class="label">Authors</div></div>
+  <div class="stat"><div class="number blue">{total_files}</div><div class="label">File Changes</div></div>
   <div class="stat"><div class="number green">+{total_ins}</div><div class="label">Lines Added</div></div>
   <div class="stat"><div class="number red">-{total_dels}</div><div class="label">Lines Removed</div></div>
+</div>
+
+<h2>Category Breakdown</h2>
+<div class="pie-container">
+  <svg width="120" height="120" viewBox="0 0 120 120">
+    {pie_slices}
+  </svg>
+  <div>{legend_items}</div>
 </div>
 
 <h2>Daily Activity</h2>
 {bars_html}
 
-<h2>Changes by Category</h2>
-<table><tr><th>Category</th><th>Commits</th><th>Files</th></tr>
-{cat_rows}</table>
+<h2>Activity by Hour</h2>
+<div class="hour-grid">
+{hour_cells}
+</div>
 
+<div class="two-col">
+<div>
 <h2>Hot Files</h2>
 <table><tr><th>#</th><th>File</th><th>Changes</th></tr>
 {hot_rows}</table>
+</div>
+<div>
+<h2>Categories</h2>
+<table><tr><th>Category</th><th>Commits</th><th>Files</th></tr>
+{cat_rows}</table>
+</div>
+</div>
 
 <h2>Commits</h2>
 <table><tr><th>Date</th><th>Hash</th><th>Message</th><th>+/-</th><th>Files</th></tr>
 {commit_rows}</table>
 
-<div class="footer">Generated by ContextPulse v0.6.0 — pip install contextpulse</div>
+<div class="footer">
+  Generated by <a href="https://pypi.org/project/contextpulse/">ContextPulse v0.7.0</a>
+  — <code>pip install contextpulse</code>
+</div>
 </body></html>"""
 
     Path(output_path).write_text(html, encoding="utf-8")
     console.print(f"[green]HTML report saved to:[/green] {output_path}")
+
+
+def learn_report(repo_path=".", output_path="learn.html"):
+    """
+    pulse learn: יוצר דף HTML שמציג את כל קבצי הקוד בפרויקט
+    עם syntax highlighting, הסברים על פונקציות, ומבנה ויזואלי.
+    כמו ספר לימוד אינטראקטיבי של הפרויקט שלך.
+    """
+    try:
+        repo = Repo(repo_path)
+    except (InvalidGitRepositoryError, NoSuchPathError):
+        console.print(f"[red]Error:[/red] '{repo_path}' is not a Git repository.")
+        return
+
+    all_files = repo.git.ls_files().split("\n")
+    all_files = [f for f in all_files if f]
+
+    # רק קבצי קוד (לא תמונות, לא בינאריים)
+    code_extensions = {
+        ".py", ".js", ".ts", ".html", ".css", ".jsx", ".tsx",
+        ".rb", ".go", ".rs", ".java", ".sh", ".bash", ".sql",
+        ".json", ".yml", ".yaml", ".toml", ".md", ".txt",
+    }
+    code_files = [
+        f for f in all_files
+        if Path(f).suffix.lower() in code_extensions
+    ]
+
+    project_name = Path(repo_path).resolve().name
+
+    # === בניית תוכן עניינים וקבצים ===
+    toc_html = ""
+    files_html = ""
+
+    for file_idx, filepath in enumerate(sorted(code_files)):
+        full_path = Path(repo_path) / filepath
+        if not full_path.exists():
+            continue
+
+        try:
+            content = full_path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+
+        lines = content.split("\n")
+        total_lines = len(lines)
+        cat = get_category(filepath)
+        color = CATEGORY_COLORS.get(cat, "white")
+
+        # תוכן עניינים
+        toc_html += (
+            f'<a href="#file-{file_idx}" class="toc-item">'
+            f'<span class="toc-cat" style="color:{_cat_to_hex(cat)}">'
+            f'{cat}</span> {filepath} '
+            f'<span class="toc-lines">{total_lines} lines</span></a>\n'
+        )
+
+        # === ניתוח הקובץ ===
+        # מזהים פונקציות, קלאסים, ייבואים
+        functions = []
+        imports = []
+        comments = []
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("def ") or stripped.startswith("async def "):
+                # שם הפונקציה
+                func_name = stripped.split("(")[0].replace("def ", "").replace("async ", "")
+                # מחפשים docstring
+                docstring = ""
+                if i + 1 < total_lines:
+                    next_lines = "\n".join(lines[i+1:i+6])
+                    if '"""' in next_lines or "'''" in next_lines:
+                        doc_lines = []
+                        for dl in lines[i+1:i+10]:
+                            doc_lines.append(dl.strip())
+                            if doc_lines[-1].endswith('"""') or doc_lines[-1].endswith("'''"):
+                                break
+                        docstring = " ".join(
+                            d.strip().strip('"').strip("'") for d in doc_lines
+                        ).strip()
+                functions.append({"name": func_name, "line": i + 1, "doc": docstring})
+            elif stripped.startswith("class "):
+                class_name = stripped.split("(")[0].split(":")[0].replace("class ", "")
+                functions.append({"name": f"class {class_name}", "line": i + 1, "doc": ""})
+            elif stripped.startswith("import ") or stripped.startswith("from "):
+                imports.append(stripped)
+            elif stripped.startswith("#") and len(stripped) > 5:
+                comments.append({"line": i + 1, "text": stripped})
+
+        # === HTML לקובץ ===
+        # Syntax highlighting פשוט — צובעים מילות מפתח
+        highlighted_lines = ""
+        for i, line in enumerate(lines, 1):
+            # HTML escape
+            safe_line = (
+                line.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
+            # צביעת מילות מפתח
+            for kw in ["def ", "class ", "import ", "from ", "return ",
+                        "if ", "else:", "elif ", "for ", "while ",
+                        "try:", "except ", "with ", "as ", "in ",
+                        "True", "False", "None", "self", "not ", "and ", "or "]:
+                safe_line = safe_line.replace(
+                    kw, f'<span class="kw">{kw}</span>'
+                )
+            # צביעת מחרוזות
+            if "#" in safe_line:
+                parts = safe_line.split("#", 1)
+                safe_line = parts[0] + f'<span class="comment">#{parts[1]}</span>'
+
+            highlighted_lines += (
+                f'<div class="code-line" id="file-{file_idx}-L{i}">'
+                f'<span class="line-num">{i}</span>'
+                f'<span class="line-code">{safe_line}</span></div>\n'
+            )
+
+        # פונקציות sidebar
+        func_list = ""
+        if functions:
+            func_list = '<div class="func-list"><b>Functions & Classes:</b><ul>'
+            for fn in functions:
+                doc_text = f' — <span class="func-doc">{fn["doc"]}</span>' if fn["doc"] else ""
+                func_list += (
+                    f'<li><a href="#file-{file_idx}-L{fn["line"]}">'
+                    f'{fn["name"]}</a> '
+                    f'<span class="func-line">line {fn["line"]}</span>'
+                    f'{doc_text}</li>'
+                )
+            func_list += "</ul></div>"
+
+        # imports
+        imports_html = ""
+        if imports:
+            imports_html = (
+                '<div class="imports-box"><b>Dependencies:</b> '
+                + ", ".join(f"<code>{imp}</code>" for imp in imports[:8])
+                + "</div>"
+            )
+
+        files_html += f"""
+<div class="file-block" id="file-{file_idx}">
+  <div class="file-header">
+    <span class="file-name">{filepath}</span>
+    <span class="file-meta">{cat} · {total_lines} lines · {len(functions)} functions</span>
+  </div>
+  {imports_html}
+  {func_list}
+  <div class="code-block">
+{highlighted_lines}
+  </div>
+</div>
+"""
+
+    # === HTML מלא ===
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContextPulse Learn — {project_name}</title>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #0d1117; color: #c9d1d9; display: flex; }}
+  .sidebar {{ width: 280px; background: #161b22; border-right: 1px solid #21262d;
+              height: 100vh; overflow-y: auto; position: fixed; padding: 1rem; }}
+  .sidebar h2 {{ color: #58a6ff; font-size: 1.1rem; margin-bottom: 1rem; }}
+  .sidebar .project-name {{ color: #58a6ff; font-size: 1.3rem; font-weight: 700;
+                            margin-bottom: 0.5rem; }}
+  .sidebar .file-count {{ color: #8b949e; font-size: 0.85rem; margin-bottom: 1.5rem; }}
+  .toc-item {{ display: block; padding: 0.4rem 0.5rem; color: #c9d1d9; text-decoration: none;
+               border-radius: 4px; font-size: 0.85rem; margin: 2px 0; }}
+  .toc-item:hover {{ background: #21262d; }}
+  .toc-cat {{ font-size: 0.7rem; font-weight: 600; margin-right: 0.3rem; }}
+  .toc-lines {{ color: #484f58; font-size: 0.75rem; }}
+  .main {{ margin-left: 280px; padding: 2rem; flex: 1; max-width: 900px; }}
+  .file-block {{ margin-bottom: 3rem; border: 1px solid #21262d; border-radius: 8px;
+                 overflow: hidden; }}
+  .file-header {{ background: #161b22; padding: 0.75rem 1rem; display: flex;
+                  justify-content: space-between; align-items: center;
+                  border-bottom: 1px solid #21262d; }}
+  .file-name {{ color: #58a6ff; font-weight: 600; font-size: 1rem; }}
+  .file-meta {{ color: #8b949e; font-size: 0.8rem; }}
+  .imports-box {{ padding: 0.75rem 1rem; background: #0d1117; border-bottom: 1px solid #21262d;
+                  font-size: 0.85rem; color: #8b949e; }}
+  .imports-box code {{ background: #1f2937; padding: 1px 6px; border-radius: 3px;
+                       font-size: 0.8rem; color: #bc8cff; }}
+  .func-list {{ padding: 0.75rem 1rem; background: #0d1117; border-bottom: 1px solid #21262d; }}
+  .func-list b {{ color: #3fb950; font-size: 0.85rem; }}
+  .func-list ul {{ list-style: none; margin-top: 0.3rem; }}
+  .func-list li {{ font-size: 0.85rem; padding: 0.15rem 0; }}
+  .func-list a {{ color: #79c0ff; text-decoration: none; }}
+  .func-list a:hover {{ text-decoration: underline; }}
+  .func-line {{ color: #484f58; font-size: 0.75rem; }}
+  .func-doc {{ color: #8b949e; font-style: italic; }}
+  .code-block {{ overflow-x: auto; font-family: 'SF Mono', 'Fira Code', monospace;
+                 font-size: 0.82rem; line-height: 1.5; }}
+  .code-line {{ display: flex; padding: 0 1rem; }}
+  .code-line:hover {{ background: #161b22; }}
+  .line-num {{ color: #484f58; min-width: 40px; text-align: right; padding-right: 1rem;
+               user-select: none; }}
+  .line-code {{ white-space: pre; }}
+  .kw {{ color: #ff7b72; }}
+  .comment {{ color: #8b949e; font-style: italic; }}
+  .footer {{ text-align: center; color: #484f58; font-size: 0.8rem; padding: 2rem;
+             margin-left: 280px; }}
+  .footer a {{ color: #58a6ff; text-decoration: none; }}
+  @media print {{
+    .sidebar {{ display: none; }}
+    .main {{ margin-left: 0; }}
+    body {{ background: white; color: #1a1a1a; }}
+    .file-block {{ border: 1px solid #ddd; }}
+    .file-header {{ background: #f3f3f3; }}
+    .code-line:hover {{ background: transparent; }}
+  }}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="project-name">{project_name}</div>
+  <div class="file-count">{len(code_files)} code files</div>
+  <h2>Files</h2>
+  {toc_html}
+</div>
+<div class="main">
+  <h1 style="color:#58a6ff; margin-bottom:0.5rem">Code Guide</h1>
+  <p style="color:#8b949e; margin-bottom:2rem">
+    Generated by ContextPulse — click any function to jump to its code
+  </p>
+  {files_html}
+</div>
+<div class="footer">
+  Generated by <a href="https://pypi.org/project/contextpulse/">ContextPulse</a>
+  — <code>pip install contextpulse</code>
+</div>
+</body></html>"""
+
+    Path(output_path).write_text(html, encoding="utf-8")
+    console.print(f"[green]Code guide saved to:[/green] {output_path}")
+    console.print(f"[dim]Open in browser to explore your code.[/dim]")
+
+
+def _cat_to_hex(cat):
+    """ממיר שם קטגוריה לצבע HEX לשימוש ב-HTML."""
+    color_map = {
+        "HTML": "#f85149", "Style": "#58a6ff", "JavaScript": "#e3b341",
+        "TypeScript": "#3178c6", "Python": "#3fb950", "Ruby": "#f85149",
+        "Go": "#00add8", "Rust": "#f74c00", "Java": "#f89820",
+        "Config": "#bc8cff", "Docs": "#c9d1d9", "Images": "#56d364",
+        "Shell": "#3fb950", "Database": "#58a6ff", "Tests": "#3fb950",
+    }
+    return color_map.get(cat, "#8b949e")
 
 
 # === מיפוי קיצורים עצלניים ===
@@ -2024,6 +2387,7 @@ SHORTCUTS = {
     "streak": None,      # פקודה מיוחדת — רצף ימים
     "log": None,         # פקודה מיוחדת — git log יפה
     "trends": None,      # פקודה מיוחדת — מגמות לאורך זמן
+    "learn": None,       # פקודה מיוחדת — מדריך קוד HTML
     "help": None,        # פקודה מיוחדת — מדריך
 }
 
@@ -2103,6 +2467,14 @@ def expand_shortcuts(argv):
         elif len(argv) > 1:
             repo = argv[1]
         pretty_log(repo, count)
+        return None
+
+    if first == "learn":
+        repo = argv[1] if len(argv) > 1 else "."
+        output = "learn.html"
+        if len(argv) > 2:
+            output = argv[2]
+        learn_report(repo, output)
         return None
 
     if first == "trends":
@@ -2213,7 +2585,7 @@ def main():
     parser.add_argument(
         "--version", "-v",
         action="version",
-        version="ContextPulse 0.7.0",
+        version="ContextPulse 0.8.0",
     )
     parser.add_argument(
         "--html",
