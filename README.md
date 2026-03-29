@@ -109,13 +109,9 @@ pulse help               # see all commands
 | `--html FILE` | | Export to styled HTML |
 | `--json` | `-j` | Output as JSON |
 | `--lang he` | `-l he` | Hebrew output |
-| `--theme NAME` | | Color theme (ocean/forest/sunset/minimal) |
-| `--version` | `-v` | Show version |
-
-### Options
-| Flag | Short | Description |
-|------|-------|-------------|
+| `--theme NAME` | | Theme: ocean/forest/sunset/minimal/colorblind/high-contrast |
 | `--accessible` | | No colors/art (screen reader friendly) |
+| `--version` | `-v` | Show version |
 
 ### Setup
 | Command | Description |

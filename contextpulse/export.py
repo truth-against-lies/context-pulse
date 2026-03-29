@@ -105,6 +105,16 @@ def export_markdown(commits, period_label, output_path):
             lines.append(f"- `{day}` {bar} ({count})")
         lines.append("")
 
+    # Lines summary
+    total_ins = sum(c.get("insertions", 0) for c in commits)
+    total_dels = sum(c.get("deletions", 0) for c in commits)
+    if total_ins > 0 or total_dels > 0:
+        lines.append(
+            f"**Lines:** +{total_ins} added, -{total_dels} removed "
+            f"(net: {total_ins - total_dels:+d})"
+        )
+        lines.append("")
+
     lines.append("## Commits")
     lines.append("| Date | Hash | Message | Files |")
     lines.append("|------|------|---------|-------|")

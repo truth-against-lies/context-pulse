@@ -410,6 +410,30 @@ def expand_shortcuts(argv):
     if not argv:
         return argv
 
+    # Step 0: Extract --lang and --theme from anywhere in argv
+    # so they work with shortcut commands too (e.g., pulse hours --lang he)
+    from . import config
+    from .config import THEMES
+    remaining = []
+    i = 0
+    while i < len(argv):
+        if argv[i] in ("--lang", "-l") and i + 1 < len(argv):
+            config.current_lang = argv[i + 1]
+            i += 2
+        elif argv[i].startswith("--theme") and i + 1 < len(argv):
+            config.current_theme = THEMES.get(argv[i + 1], THEMES["default"])
+            i += 2
+        elif argv[i] == "--accessible":
+            config.accessible_mode = True
+            i += 1
+        else:
+            remaining.append(argv[i])
+            i += 1
+    argv = remaining if remaining else argv
+
+    if not argv:
+        return []
+
     first = argv[0]
 
     # Step 1: Hebrew → English

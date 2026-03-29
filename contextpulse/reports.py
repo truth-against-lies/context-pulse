@@ -318,7 +318,7 @@ def team_report(repo_path=".", days=30):
         authors[name]["last"] = date_str
 
     if not authors:
-        console.print(Panel("No commits found.", style="yellow"))
+        console.print(Panel(t("no_commits"), style="yellow"))
         return
 
     show_logo()
@@ -385,13 +385,13 @@ def hours_report(repo_path=".", days=30):
         day_counts[commit_dt.strftime("%A")] += 1
 
     if not hour_counts:
-        console.print(Panel("No commits found.", style="yellow"))
+        console.print(Panel(t("no_commits"), style="yellow"))
         return
 
     show_logo()
     console.print(
         Panel.fit(
-            f"[bold cyan]Work Patterns[/bold cyan] — last {days} days",
+            f"[{th('title')}]{t('work_patterns')}[/{th('title')}] — last {days} days",
         )
     )
 
@@ -617,7 +617,7 @@ def streak_report(repo_path="."):
     commit_days = _get_commit_days(repo)
 
     if not commit_days:
-        console.print(Panel("No commits found.", style="yellow"))
+        console.print(Panel(t("no_commits"), style="yellow"))
         return
 
     current_streak = _calc_streak(commit_days)
@@ -766,7 +766,7 @@ def trends_report(repo_path=".", weeks=8):
         week_insertions[key] += commit.stats.total.get("insertions", 0)
 
     if not week_counts:
-        console.print(Panel("No commits found.", style="yellow"))
+        console.print(Panel(t("no_commits"), style="yellow"))
         return
 
     show_logo()
@@ -884,7 +884,7 @@ def diff_report(repo_path=".", count=5):
                 ins_len = round(ins / total * bar_len)
                 del_len = bar_len - ins_len
                 bar = (
-                    f"[green]{'+'* ins_len}[/green]"
+                    f"[green]{'+' * ins_len}[/green]"
                     f"[red]{'-' * del_len}[/red]"
                 )
             else:
@@ -1241,7 +1241,7 @@ def id_report(repo_path="."):
     # הצגה
     color = CATEGORY_COLORS.get(top_lang[0], "cyan")
 
-    console.print()
+    show_logo()
     card = (
         f"[bold {color}]{project_name}[/bold {color}]\n"
         f"\n"
@@ -1275,7 +1275,7 @@ def commit_quality_report(repo_path=".", count=100):
         messages.append(msg)
 
     if not messages:
-        console.print(Panel("No commits found.", style="yellow"))
+        console.print(Panel(t("no_commits"), style="yellow"))
         return
 
     show_logo()
@@ -1715,7 +1715,7 @@ def leaderboard_report(repo_path=".", days=30):
         pass
 
     if not authors:
-        console.print(Panel("No commits found.", style="yellow"))
+        console.print(Panel(t("no_commits"), style="yellow"))
         return
 
     show_logo()
