@@ -141,280 +141,223 @@ SHORTCUTS = {
 }
 
 
-def expand_shortcuts(argv):
-    """
-    Translates shortcuts to full flags.
-    E.g.: ["today"] -> ["--today"]
-          ["since", "2026-03-01"] -> ["--since", "2026-03-01"]
-          ["scan"] -> runs scan_code and returns None
-    """
-    if not argv:
-        return argv
+# === Hebrew → English translation map ===
+HEBREW_COMMANDS = {
+    "צוות": "team", "שעות": "hours", "לימוד": "learn",
+    "מגמות": "trends", "רצף": "streak", "סריקה": "scan",
+    "השוואה": "vs", "לוג": "log", "שינויים": "diff",
+    "בעלות": "blame", "סטנדאפ": "standup", "זהות": "id",
+    "איכות": "quality", "גיל": "age",
+    "שינויון": "changelog", "הוק": "hook", "צפייה": "watch",
+    "עזרה": "help",
+}
 
-    first = argv[0]
+# === Smart NLP keyword maps ===
+SMART_KEYWORDS = {
+    "learn": "learn", "לימוד": "learn", "code guide": "learn",
+    "ללמוד": "learn", "קוד": "learn", "להבין": "learn",
+    "guide": "learn", "מדריך": "learn", "tutorial": "learn",
+    "team": "team", "צוות": "team", "contributors": "team",
+    "תורמים": "team", "מי עבד": "team", "who worked": "team",
+    "who contributed": "team", "מי תרם": "team",
+    "hours": "hours", "שעות": "hours", "patterns": "hours",
+    "דפוסים": "hours", "זמנים": "hours", "מתי עבדתי": "hours",
+    "when did i work": "hours", "work time": "hours",
+    "productivity": "hours",
+    "trends": "trends", "מגמות": "trends", "מגמה": "trends",
+    "progress": "trends", "התקדמות": "trends",
+    "השתפרתי": "trends", "improving": "trends",
+    "streak": "streak", "רצף": "streak", "רציפות": "streak",
+    "consecutive": "streak",
+    "scan": "scan", "סריקה": "scan", "בריאות": "scan",
+    "health": "scan", "בדיקה": "scan", "check": "scan",
+    "vs": "vs", "השוואה": "vs", "compare": "vs", "להשוות": "vs",
+    "versus": "vs", "לעומת": "vs", "difference": "vs",
+    "log": "log", "לוג": "log", "history": "log",
+    "היסטוריה": "log", "commits": "log",
+    "help": "help", "עזרה": "help", "איך": "help",
+    "how": "help", "commands": "help", "פקודות": "help",
+    "multi": "multi", "מולטי": "multi", "ריפו": "multi",
+    "all repos": "multi", "כל הריפו": "multi",
+    "init": "init", "config": "init", "הגדרות": "init",
+    "setup": "init",
+    "diff": "diff", "שינויים": "diff", "changes": "diff",
+    "מה השתנה": "diff", "what changed": "diff",
+    "blame": "blame", "בעלות": "blame", "ownership": "blame",
+    "מי כתב": "blame", "who wrote": "blame", "who owns": "blame",
+    "bus factor": "blame", "אחראי": "blame",
+    "standup": "standup", "סטנדאפ": "standup",
+    "morning": "standup", "בוקר": "standup",
+    "what did i do": "standup", "מה עשיתי אתמול": "standup",
+    "id": "id", "זהות": "id", "identity": "id", "card": "id",
+    "כרטיס": "id", "about": "id",
+    "quality": "quality", "איכות הודעות": "quality",
+    "message quality": "quality", "commit quality": "quality",
+    "age": "age", "גיל": "age", "stale": "age",
+    "ישן": "age", "מת": "age",
+    "changelog": "changelog",
+    "watch": "watch", "צפייה": "watch", "live": "watch",
+    "hook": "hook",
+}
 
-    # === Hebrew to English translation ===
-    hebrew_to_english = {
-        "צוות": "team", "שעות": "hours", "לימוד": "learn",
-        "מגמות": "trends", "רצף": "streak", "סריקה": "scan",
-        "השוואה": "vs", "לוג": "log", "שינויים": "diff",
-        "בעלות": "blame", "סטנדאפ": "standup", "זהות": "id",
-        "איכות": "quality", "גיל": "age",
-        "שינויון": "changelog", "הוק": "hook", "צפייה": "watch",
-        "עזרה": "help",
-    }
-    if first in hebrew_to_english:
-        first = hebrew_to_english[first]
+SMART_INTENTS = {
+    "דוח", "report", "סיכום", "summary", "מה עשיתי",
+    "what did i do", "מה קורה", "status", "סטטוס",
+    "מה נעשה", "what happened", "מה חדש", "what's new",
+    "תראה לי", "show me", "הראה", "אני רוצה לראות",
+    "i want to see", "תפתח", "open", "run", "תריץ",
+}
+
+SMART_TIME = {
+    "today": "--today", "היום": "--today", "יומי": "--today",
+    "daily": "--today", "של היום": "--today",
+    "week": "--week", "שבוע": "--week", "שבועי": "--week",
+    "weekly": "--week", "השבוע": "--week", "this week": "--week",
+    "month": "--month", "חודש": "--month", "חודשי": "--month",
+    "monthly": "--month", "החודש": "--month", "this month": "--month",
+}
+
+SMART_FLAGS = {
+    "beginner": "--beginner", "מתחיל": "--beginner",
+    "מתחילים": "--beginner", "הסברים": "--beginner",
+    "explain": "--beginner", "simple": "--beginner",
+    "פשוט": "--beginner",
+    "json": "--json",
+    "hebrew": "--lang he", "עברית": "--lang he",
+}
+
+
+def _translate_hebrew(first, argv):
+    """Step 1: Translate Hebrew command word to English."""
+    if first in HEBREW_COMMANDS:
+        first = HEBREW_COMMANDS[first]
         argv[0] = first
+    return first, argv
 
-    # === Smart Mode ===
-    all_commands = set(SHORTCUTS.keys()) | set(hebrew_to_english.keys())
-    if first not in all_commands and not first.startswith("-") and not first.startswith("/"):
-        all_words = " ".join(argv).lower()
 
-        # === Direct keywords ===
-        SMART_KEYWORDS = {
-            "learn": "learn", "לימוד": "learn", "code guide": "learn",
-            "ללמוד": "learn", "קוד": "learn", "להבין": "learn",
-            "guide": "learn", "מדריך": "learn", "tutorial": "learn",
-            "team": "team", "צוות": "team", "contributors": "team",
-            "תורמים": "team", "מי עבד": "team", "who worked": "team",
-            "who contributed": "team", "מי תרם": "team",
-            "hours": "hours", "שעות": "hours", "patterns": "hours",
-            "דפוסים": "hours", "זמנים": "hours", "מתי עבדתי": "hours",
-            "when did i work": "hours", "work time": "hours",
-            "productivity": "hours",
-            "trends": "trends", "מגמות": "trends", "מגמה": "trends",
-            "progress": "trends", "התקדמות": "trends",
-            "השתפרתי": "trends", "improving": "trends",
-            "streak": "streak", "רצף": "streak", "רציפות": "streak",
-            "consecutive": "streak",
-            "scan": "scan", "סריקה": "scan", "בריאות": "scan",
-            "health": "scan",
-            "בדיקה": "scan", "check": "scan",
-            "vs": "vs", "השוואה": "vs", "compare": "vs", "להשוות": "vs",
-            "versus": "vs", "לעומת": "vs", "difference": "vs",
-            "log": "log", "לוג": "log", "history": "log",
-            "היסטוריה": "log", "commits": "log",
-            "help": "help", "עזרה": "help", "איך": "help",
-            "how": "help", "commands": "help", "פקודות": "help",
-            "multi": "multi", "מולטי": "multi", "ריפו": "multi",
-            "all repos": "multi", "כל הריפו": "multi",
-            "init": "init", "config": "init", "הגדרות": "init",
-            "setup": "init",
-            "diff": "diff", "שינויים": "diff", "changes": "diff",
-            "מה השתנה": "diff", "what changed": "diff",
-            "blame": "blame", "בעלות": "blame", "ownership": "blame",
-            "מי כתב": "blame", "who wrote": "blame", "who owns": "blame",
-            "bus factor": "blame", "אחראי": "blame",
-            "standup": "standup", "סטנדאפ": "standup",
-            "morning": "standup", "בוקר": "standup",
-            "what did i do": "standup", "מה עשיתי אתמול": "standup",
-            "id": "id", "זהות": "id", "identity": "id", "card": "id",
-            "כרטיס": "id", "about": "id",
-            "quality": "quality", "איכות הודעות": "quality",
-            "message quality": "quality", "commit quality": "quality",
-            "age": "age", "גיל": "age", "stale": "age", "old": "age",
-            "ישן": "age", "מת": "age",
-        }
+def _parse_natural_language(argv):
+    """
+    Step 2: Parse free-form Hebrew/English input into a command.
+    Returns (new_argv, new_first) or (None, None) if not understood.
+    """
+    all_words = " ".join(argv).lower()
+    all_word_list = all_words.split()
 
-        # === Intents ===
-        SMART_INTENTS = {
-            "דוח": None, "report": None, "סיכום": None,
-            "summary": None, "מה עשיתי": None, "what did i do": None,
-            "מה קורה": None, "status": None, "סטטוס": None,
-            "מה נעשה": None, "what happened": None,
-            "מה חדש": None, "what's new": None,
-            "תראה לי": None, "show me": None, "הראה": None,
-            "אני רוצה לראות": None, "i want to see": None,
-            "תפתח": None, "open": None, "run": None, "תריץ": None,
-        }
+    def _matches(keyword):
+        if " " in keyword:
+            return keyword in all_words
+        return keyword in all_word_list
 
-        # Time
-        SMART_TIME = {
-            "today": "--today", "היום": "--today", "יומי": "--today",
-            "daily": "--today", "של היום": "--today",
-            "week": "--week", "שבוע": "--week", "שבועי": "--week",
-            "weekly": "--week", "השבוע": "--week", "this week": "--week",
-            "month": "--month", "חודש": "--month", "חודשי": "--month",
-            "monthly": "--month", "החודש": "--month", "this month": "--month",
-        }
+    detected_command = None
+    detected_time = None
+    detected_flags = []
+    has_intent = False
 
-        # Flags
-        SMART_FLAGS = {
-            "beginner": "--beginner", "מתחיל": "--beginner",
-            "מתחילים": "--beginner", "הסברים": "--beginner",
-            "explain": "--beginner", "simple": "--beginner",
-            "פשוט": "--beginner",
-            "json": "--json",
-            "hebrew": "--lang he", "עברית": "--lang he",
-        }
+    for keyword, cmd in SMART_KEYWORDS.items():
+        if _matches(keyword):
+            detected_command = cmd
+            break
 
-        detected_command = None
-        detected_time = None
-        detected_flags = []
-        has_intent = False
-
-        # חיפוש מילים שלמות (word boundary) כדי ש-"id" לא יתאים ל-"guide"
-        all_word_list = all_words.split()
-
-        def _matches(keyword):
-            """בודק אם המילה קיימת כמילה שלמה או כביטוי."""
-            if " " in keyword:
-                return keyword in all_words
-            return keyword in all_word_list
-
-        for keyword, cmd in SMART_KEYWORDS.items():
-            if _matches(keyword):
-                detected_command = cmd
+    if not detected_command:
+        for intent_word in SMART_INTENTS:
+            if _matches(intent_word):
+                has_intent = True
                 break
 
-        if not detected_command:
-            for intent_word in SMART_INTENTS:
-                if _matches(intent_word):
-                    has_intent = True
-                    break
+    for keyword, flag in SMART_TIME.items():
+        if _matches(keyword):
+            detected_time = flag
+            break
 
-        for keyword, flag in SMART_TIME.items():
-            if _matches(keyword):
-                detected_time = flag
-                break
+    for keyword, flag in SMART_FLAGS.items():
+        if _matches(keyword):
+            detected_flags.append(flag)
 
-        for keyword, flag in SMART_FLAGS.items():
-            if _matches(keyword):
-                detected_flags.append(flag)
+    # Build command
+    if detected_command:
+        new_argv = [detected_command]
+        if detected_flags:
+            for f in detected_flags:
+                new_argv.extend(f.split())
+        if detected_time and detected_command in ("team", "hours", "vs", "trends"):
+            time_to_days = {"--today": "1", "--week": "7", "--month": "30"}
+            new_argv.append(time_to_days.get(detected_time, "7"))
+        elif detected_time and detected_command not in (
+            "learn", "scan", "help", "streak", "init",
+            "team", "hours", "vs", "trends", "log",
+        ):
+            new_argv.append(detected_time)
+        console.print(f"  [dim]→ understood: pulse {' '.join(new_argv)}[/dim]\n")
+        return new_argv
 
-        # === Build command ===
-        if detected_command:
-            new_argv = [detected_command]
-            if detected_flags:
-                for f in detected_flags:
-                    new_argv.extend(f.split())
-            if detected_time and detected_command in (
-                "team", "hours", "vs", "trends"
-            ):
-                time_to_days = {
-                    "--today": "1", "--week": "7", "--month": "30",
-                }
-                new_argv.append(time_to_days.get(detected_time, "7"))
-            elif detected_time and detected_command not in (
-                "learn", "scan", "help", "streak", "init",
-                "team", "hours", "vs", "trends", "log",
-            ):
-                new_argv.append(detected_time)
+    if has_intent and detected_time:
+        new_argv = [detected_time]
+        for f in detected_flags:
+            new_argv.extend(f.split())
+        console.print(f"  [dim]→ understood: pulse {' '.join(new_argv)}[/dim]\n")
+        return new_argv
 
-            console.print(
-                f"  [dim]→ understood: pulse {' '.join(new_argv)}[/dim]\n"
-            )
-            argv = new_argv
-            first = argv[0]
+    if has_intent:
+        new_argv = []
+        for f in detected_flags:
+            new_argv.extend(f.split())
+        label = ' '.join(new_argv) if new_argv else '(weekly report)'
+        console.print(f"  [dim]→ understood: pulse {label}[/dim]\n")
+        return new_argv if new_argv else []
 
-        elif has_intent and detected_time:
-            new_argv = [detected_time]
-            if detected_flags:
-                for f in detected_flags:
-                    new_argv.extend(f.split())
-            console.print(
-                f"  [dim]→ understood: pulse {' '.join(new_argv)}[/dim]\n"
-            )
-            argv = new_argv
-            first = argv[0]
+    # Not understood
+    console.print(
+        f"  [yellow]I didn't understand '{' '.join(argv)}'.[/yellow]\n"
+        f"  Did you mean one of these?\n"
+        f"    [cyan]pulse today[/cyan]     — daily report\n"
+        f"    [cyan]pulse scan[/cyan]      — project health\n"
+        f"    [cyan]pulse team[/cyan]      — contributors\n"
+        f"    [cyan]pulse hours[/cyan]     — work patterns\n"
+        f"    [cyan]pulse learn[/cyan]     — code guide\n"
+        f"    [cyan]pulse help[/cyan]      — all commands\n"
+    )
+    return None
 
-        elif has_intent and not detected_time:
-            new_argv = []
-            if detected_flags:
-                for f in detected_flags:
-                    new_argv.extend(f.split())
-            console.print(
-                f"  [dim]→ understood: pulse {' '.join(new_argv) if new_argv else '(weekly report)'}[/dim]\n"
-            )
-            argv = new_argv if new_argv else []
-            first = argv[0] if argv else ""
 
-        else:
-            console.print(
-                f"  [yellow]I didn't understand '{' '.join(argv)}'.[/yellow]\n"
-                f"  Did you mean one of these?\n"
-                f"    [cyan]pulse today[/cyan]     — daily report\n"
-                f"    [cyan]pulse scan[/cyan]      — project health\n"
-                f"    [cyan]pulse team[/cyan]      — contributors\n"
-                f"    [cyan]pulse hours[/cyan]     — work patterns\n"
-                f"    [cyan]pulse learn[/cyan]     — code guide\n"
-                f"    [cyan]pulse help[/cyan]      — all commands\n"
-            )
-            return None
+# === Command dispatch table ===
+# Maps command name → (function, has_days, default_days)
+# has_days=None means special handling
+COMMAND_TABLE = {
+    "scan":      (scan_code, None, None),
+    "team":      (team_report, True, 30),
+    "hours":     (hours_report, True, 30),
+    "vs":        (vs_report, True, 7),
+    "multi":     (multi_report, True, 7),
+    "streak":    (streak_report, None, None),
+    "log":       (pretty_log, True, 20),
+    "diff":      (diff_report, True, 5),
+    "blame":     (blame_report, None, None),
+    "standup":   (standup_report, None, None),
+    "id":        (id_report, None, None),
+    "quality":   (commit_quality_report, True, 100),
+    "age":       (code_age_report, None, None),
+    "hook":      (install_hook, None, None),
+    "watch":     (watch_dashboard, None, None),
+    "trends":    (trends_report, True, 8),
+}
 
-    # Special commands — each runs a dedicated function with error handling
-    if first == "scan":
-        repo, = _parse_args(argv)
-        _safe_run(scan_code, repo)
-        return None
 
-    if first == "team":
-        repo, days = _parse_args(argv, has_days=True, default_days=30)
-        _safe_run(team_report, repo, days)
-        return None
-
-    if first == "hours":
-        repo, days = _parse_args(argv, has_days=True, default_days=30)
-        _safe_run(hours_report, repo, days)
-        return None
-
-    if first == "vs":
-        repo, days = _parse_args(argv, has_days=True, default_days=7)
-        _safe_run(vs_report, repo, days)
-        return None
-
-    if first == "multi":
-        repo, days = _parse_args(argv, has_days=True, default_days=7)
-        _safe_run(multi_report, repo, days)
-        return None
+def _dispatch_command(first, argv):
+    """
+    Step 3: Dispatch a recognized command to its function.
+    Returns True if handled, False if not a special command.
+    """
+    # Commands without error wrapping
+    if first == "help":
+        show_help()
+        return True
 
     if first == "init":
         repo, = _parse_args(argv)
         init_config(repo)
-        return None
+        return True
 
-    if first == "streak":
-        repo, = _parse_args(argv)
-        _safe_run(streak_report, repo)
-        return None
-
-    if first == "log":
-        repo, count = _parse_args(argv, has_days=True, default_days=20)
-        _safe_run(pretty_log, repo, count)
-        return None
-
-    if first == "diff":
-        repo, count = _parse_args(argv, has_days=True, default_days=5)
-        _safe_run(diff_report, repo, count)
-        return None
-
-    if first == "blame":
-        repo, = _parse_args(argv)
-        _safe_run(blame_report, repo)
-        return None
-
-    if first == "standup":
-        repo, = _parse_args(argv)
-        _safe_run(standup_report, repo)
-        return None
-
-    if first == "id":
-        repo, = _parse_args(argv)
-        _safe_run(id_report, repo)
-        return None
-
-    if first == "quality":
-        repo, count = _parse_args(argv, has_days=True, default_days=100)
-        _safe_run(commit_quality_report, repo, count)
-        return None
-
-    if first == "age":
-        repo, = _parse_args(argv)
-        _safe_run(code_age_report, repo)
-        return None
-
+    # Changelog has special arg parsing
     if first == "changelog":
         repo = "."
         output = None
@@ -424,40 +367,61 @@ def expand_shortcuts(argv):
             else:
                 repo = arg
         _safe_run(changelog_report, repo, output)
-        return None
+        return True
 
-    if first == "hook":
-        repo, = _parse_args(argv)
-        _safe_run(install_hook, repo)
-        return None
-
-    if first == "watch":
-        repo, = _parse_args(argv)
-        _safe_run(watch_dashboard, repo)
-        return None
-
+    # Learn has special flags
     if first == "learn":
         beginner = "--beginner" in argv or "-b" in argv
         rest = [a for a in argv[1:] if a not in ("--beginner", "-b")]
         repo = rest[0] if rest else "."
         output = rest[1] if len(rest) > 1 else "learn.html"
         _safe_run(learn_report, repo, output, beginner=beginner)
+        return True
+
+    # Table-driven dispatch
+    if first in COMMAND_TABLE:
+        func, has_days, default_days = COMMAND_TABLE[first]
+        if has_days:
+            repo, days = _parse_args(argv, has_days=True, default_days=default_days)
+            _safe_run(func, repo, days)
+        else:
+            repo, = _parse_args(argv)
+            _safe_run(func, repo)
+        return True
+
+    return False
+
+
+def expand_shortcuts(argv):
+    """
+    Main entry point: translates user input into a command.
+    3 steps: Hebrew translation → NLP parsing → command dispatch.
+    """
+    if not argv:
+        return argv
+
+    first = argv[0]
+
+    # Step 1: Hebrew → English
+    first, argv = _translate_hebrew(first, argv)
+
+    # Step 2: Smart NLP mode (if not a known command)
+    all_commands = set(SHORTCUTS.keys()) | set(HEBREW_COMMANDS.keys())
+    if first not in all_commands and not first.startswith("-") and not first.startswith("/"):
+        result = _parse_natural_language(argv)
+        if result is None:
+            return None
+        argv = result
+        first = argv[0] if argv else ""
+
+    # Step 3: Dispatch special commands
+    if _dispatch_command(first, argv):
         return None
 
-    if first == "trends":
-        repo, weeks = _parse_args(argv, has_days=True, default_days=8)
-        _safe_run(trends_report, repo, weeks)
-        return None
-
-    if first == "help":
-        show_help()
-        return None
-
-    # since/s = needs the date after it
+    # Simple shortcuts (today → --today, etc.)
     if first in ("since", "s") and len(argv) > 1:
         return ["--since", argv[1]] + argv[2:]
 
-    # Regular shortcut
     if first in SHORTCUTS and SHORTCUTS[first] is not None:
         return SHORTCUTS[first] + argv[1:]
 
