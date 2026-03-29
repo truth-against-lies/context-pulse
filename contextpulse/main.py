@@ -32,7 +32,7 @@ from datetime import datetime
 from git.exc import InvalidGitRepositoryError, NoSuchPathError
 from rich.panel import Panel
 
-from .config import THEMES, current_lang, current_theme
+from .config import THEMES, current_lang, current_theme, t
 from . import config
 from . import __version__
 from .ui import console, show_logo
@@ -171,18 +171,18 @@ def main():
     # === Calculate days ===
     if args.today:
         days = 1
-        period_label = "today"
+        period_label = t("today_label")
     elif args.days is not None:
         days = args.days
-        period_label = f"last {days} days"
+        period_label = t("last_x_days").format(days=days)
     elif args.month:
         days = 30
-        period_label = "last 30 days"
+        period_label = t("last_x_days").format(days=30)
     elif args.since:
         try:
             since_dt = datetime.strptime(args.since, "%Y-%m-%d")
             days = (datetime.now() - since_dt).days
-            period_label = f"since {args.since}"
+            period_label = f"{t('since_label')} {args.since}"
         except ValueError:
             console.print(
                 "[red]Error:[/red] Date format must be YYYY-MM-DD "
@@ -191,7 +191,7 @@ def main():
             return
     else:
         days = 7
-        period_label = "last 7 days"
+        period_label = t("last_x_days").format(days=7)
 
     if args.author:
         period_label += f" (author: {args.author})"

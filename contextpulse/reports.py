@@ -80,30 +80,31 @@ def generate_summary(commits, categories):
     messages = " ".join(c["message"].lower() for c in commits)
     activities = []
     if "fix" in messages:
-        activities.append("bug fixes")
+        activities.append(t("bug_fixes"))
     if "add" in messages:
-        activities.append("new features")
+        activities.append(t("new_features"))
     if "update" in messages or "improve" in messages:
-        activities.append("improvements")
+        activities.append(t("improvements"))
     if "refactor" in messages:
-        activities.append("refactoring")
+        activities.append(t("refactoring"))
     if "test" in messages:
-        activities.append("testing")
+        activities.append(t("testing"))
     if "doc" in messages or "readme" in messages:
-        activities.append("documentation")
+        activities.append(t("documentation"))
     if not activities:
-        activities.append("various changes")
+        activities.append(t("various"))
 
     activity_str = ", ".join(activities)
+    commit_word = "commit" if total_commits == 1 else t("commits_word")
     summary = (
-        f"You made {total_commits} {'commit' if total_commits == 1 else 'commits'}, focusing mainly on "
-        f"{top_cat} ({top_pct}%). "
-        f"Main activities: {activity_str}."
+        f"{t('you_made')} {total_commits} {commit_word}, "
+        f"{t('focusing_on')} {top_cat} ({top_pct}%). "
+        f"{t('main_activities')}: {activity_str}."
     )
 
     if len(sorted_cats) > 1:
         others = [c[0] for c in sorted_cats[1:3]]
-        summary += f" Also touched: {', '.join(others)}."
+        summary += f" {t('also_touched')}: {', '.join(others)}."
 
     return summary
 
@@ -221,10 +222,10 @@ def display_report(commits, period_label):
         show_header=True,
         header_style=th("header"),
     )
-    table.add_column("Date", style="dim", width=16)
-    table.add_column("Hash", style=th("accent"), width=9)
-    table.add_column("Message", style="white")
-    table.add_column("Files", justify="right", style=th("positive"))
+    table.add_column(t("date"), style="dim", width=16)
+    table.add_column(t("hash"), style=th("accent"), width=9)
+    table.add_column(t("message"), style="white")
+    table.add_column(t("files"), justify="right", style=th("positive"))
 
     for commit in commits:
         table.add_row(

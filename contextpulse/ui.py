@@ -6,18 +6,17 @@ from rich.console import Console
 from rich.table import Table
 
 from . import config
-from .config import th
+from .config import th, t
 
 console = Console()
 
-LOGO = """[bold cyan]
+LOGO_ART = """[bold cyan]
    ____            _            _   ____        _
   / ___|___  _ __ | |_ _____  _| |_|  _ \\ _   _| |___  ___
  | |   / _ \\| '_ \\| __/ _ \\ \\/ / __| |_) | | | | / __|/ _ \\
  | |__| (_) | | | | ||  __/>  <| |_|  __/| |_| | \\__ \\  __/
   \\____\\___/|_| |_|\\__\\___/_/\\_\\\\__|_|    \\__,_|_|___/\\___|
-[/bold cyan][dim]  Turn your Git history into a human story[/dim]
-"""
+[/bold cyan]"""
 
 
 def show_logo():
@@ -25,7 +24,7 @@ def show_logo():
     if config.accessible_mode:
         console.print("ContextPulse")
     else:
-        console.print(LOGO)
+        console.print(LOGO_ART + f"[dim]  {t('logo_subtitle')}[/dim]\n")
 
 
 def show_help():
