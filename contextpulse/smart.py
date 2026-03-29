@@ -22,6 +22,64 @@ from .reports import (
     watch_dashboard,
 )
 from .ui import console, show_help
+from rich.panel import Panel
+
+
+def _parse_args(argv, has_days=False, default_days=30):
+    """
+    Helper: מנתח ארגומנטים לפקודות מיוחדות.
+    מחזיר (repo, days) או (repo,) לפי has_days.
+    """
+    repo = "."
+    days = default_days
+
+    if has_days:
+        if len(argv) > 1 and argv[1].isdigit():
+            days = int(argv[1])
+            repo = argv[2] if len(argv) > 2 else "."
+        elif len(argv) > 1:
+            repo = argv[1]
+        return repo, days
+    else:
+        if len(argv) > 1:
+            repo = argv[1]
+        return (repo,)
+
+
+def _safe_run(func, *args, **kwargs):
+    """
+    Helper: מריץ פונקציה עם error handling לנתיבים לא תקינים.
+    במקום קריסה — הודעת שגיאה יפה.
+    """
+    try:
+        func(*args, **kwargs)
+    except InvalidGitRepositoryError:
+        repo = args[0] if args else "."
+        console.print(
+            Panel(
+                f"[red]'{repo}' is not a Git repository.[/red]\n\n"
+                "Make sure you're inside a Git project, or specify a path:\n"
+                "  [cyan]pulse <command> ~/code/my-project[/cyan]",
+                title="Not a Git Repository",
+                border_style="red",
+            )
+        )
+    except NoSuchPathError:
+        repo = args[0] if args else "."
+        console.print(
+            Panel(
+                f"[red]Path '{repo}' does not exist.[/red]",
+                title="Path Not Found",
+                border_style="red",
+            )
+        )
+    except ValueError as e:
+        if "does not exist" in str(e).lower() or "reference" in str(e).lower():
+            console.print("[yellow]This repository has no commits yet.[/yellow]")
+        else:
+            console.print(f"[red]Error:[/red] {e}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
 
 
 # === Lazy shortcut mapping ===
@@ -197,24 +255,33 @@ def expand_shortcuts(argv):
         detected_flags = []
         has_intent = False
 
+        # חיפוש מילים שלמות (word boundary) כדי ש-"id" לא יתאים ל-"guide"
+        all_word_list = all_words.split()
+
+        def _matches(keyword):
+            """בודק אם המילה קיימת כמילה שלמה או כביטוי."""
+            if " " in keyword:
+                return keyword in all_words
+            return keyword in all_word_list
+
         for keyword, cmd in SMART_KEYWORDS.items():
-            if keyword in all_words:
+            if _matches(keyword):
                 detected_command = cmd
                 break
 
         if not detected_command:
             for intent_word in SMART_INTENTS:
-                if intent_word in all_words:
+                if _matches(intent_word):
                     has_intent = True
                     break
 
         for keyword, flag in SMART_TIME.items():
-            if keyword in all_words:
+            if _matches(keyword):
                 detected_time = flag
                 break
 
         for keyword, flag in SMART_FLAGS.items():
-            if keyword in all_words:
+            if _matches(keyword):
                 detected_flags.append(flag)
 
         # === Build command ===
@@ -277,108 +344,75 @@ def expand_shortcuts(argv):
             )
             return None
 
-    # Special commands — each runs a dedicated function
+    # Special commands — each runs a dedicated function with error handling
     if first == "scan":
-        repo = argv[1] if len(argv) > 1 else "."
-        scan_code(repo)
+        repo, = _parse_args(argv)
+        _safe_run(scan_code, repo)
         return None
 
     if first == "team":
-        repo = argv[1] if len(argv) > 1 else "."
-        days = 30
-        if len(argv) > 1 and argv[1].isdigit():
-            days = int(argv[1])
-            repo = argv[2] if len(argv) > 2 else "."
-        team_report(repo, days)
+        repo, days = _parse_args(argv, has_days=True, default_days=30)
+        _safe_run(team_report, repo, days)
         return None
 
     if first == "hours":
-        repo = argv[1] if len(argv) > 1 else "."
-        days = 30
-        if len(argv) > 1 and argv[1].isdigit():
-            days = int(argv[1])
-            repo = argv[2] if len(argv) > 2 else "."
-        hours_report(repo, days)
+        repo, days = _parse_args(argv, has_days=True, default_days=30)
+        _safe_run(hours_report, repo, days)
         return None
 
     if first == "vs":
-        days = 7
-        repo = "."
-        if len(argv) > 1 and argv[1].isdigit():
-            days = int(argv[1])
-            repo = argv[2] if len(argv) > 2 else "."
-        elif len(argv) > 1:
-            repo = argv[1]
-        vs_report(repo, days)
+        repo, days = _parse_args(argv, has_days=True, default_days=7)
+        _safe_run(vs_report, repo, days)
         return None
 
     if first == "multi":
-        path = argv[1] if len(argv) > 1 else "."
-        days = 7
-        if len(argv) > 2 and argv[2].isdigit():
-            days = int(argv[2])
-        multi_report(path, days)
+        repo, days = _parse_args(argv, has_days=True, default_days=7)
+        _safe_run(multi_report, repo, days)
         return None
 
     if first == "init":
-        repo = argv[1] if len(argv) > 1 else "."
+        repo, = _parse_args(argv)
         init_config(repo)
         return None
 
     if first == "streak":
-        repo = argv[1] if len(argv) > 1 else "."
-        streak_report(repo)
+        repo, = _parse_args(argv)
+        _safe_run(streak_report, repo)
         return None
 
     if first == "log":
-        repo = "."
-        count = 20
-        if len(argv) > 1 and argv[1].isdigit():
-            count = int(argv[1])
-            repo = argv[2] if len(argv) > 2 else "."
-        elif len(argv) > 1:
-            repo = argv[1]
-        pretty_log(repo, count)
+        repo, count = _parse_args(argv, has_days=True, default_days=20)
+        _safe_run(pretty_log, repo, count)
         return None
 
     if first == "diff":
-        count = 5
-        repo = "."
-        if len(argv) > 1 and argv[1].isdigit():
-            count = int(argv[1])
-            repo = argv[2] if len(argv) > 2 else "."
-        elif len(argv) > 1:
-            repo = argv[1]
-        diff_report(repo, count)
+        repo, count = _parse_args(argv, has_days=True, default_days=5)
+        _safe_run(diff_report, repo, count)
         return None
 
     if first == "blame":
-        repo = argv[1] if len(argv) > 1 else "."
-        blame_report(repo)
+        repo, = _parse_args(argv)
+        _safe_run(blame_report, repo)
         return None
 
     if first == "standup":
-        repo = argv[1] if len(argv) > 1 else "."
-        standup_report(repo)
+        repo, = _parse_args(argv)
+        _safe_run(standup_report, repo)
         return None
 
     if first == "id":
-        repo = argv[1] if len(argv) > 1 else "."
-        id_report(repo)
+        repo, = _parse_args(argv)
+        _safe_run(id_report, repo)
         return None
 
     if first == "quality":
-        repo = argv[1] if len(argv) > 1 else "."
-        count = 100
-        if len(argv) > 1 and argv[1].isdigit():
-            count = int(argv[1])
-            repo = argv[2] if len(argv) > 2 else "."
-        commit_quality_report(repo, count)
+        repo, count = _parse_args(argv, has_days=True, default_days=100)
+        _safe_run(commit_quality_report, repo, count)
         return None
 
     if first == "age":
-        repo = argv[1] if len(argv) > 1 else "."
-        code_age_report(repo)
+        repo, = _parse_args(argv)
+        _safe_run(code_age_report, repo)
         return None
 
     if first == "changelog":
@@ -389,17 +423,17 @@ def expand_shortcuts(argv):
                 output = arg
             else:
                 repo = arg
-        changelog_report(repo, output)
+        _safe_run(changelog_report, repo, output)
         return None
 
     if first == "hook":
-        repo = argv[1] if len(argv) > 1 else "."
-        install_hook(repo)
+        repo, = _parse_args(argv)
+        _safe_run(install_hook, repo)
         return None
 
     if first == "watch":
-        repo = argv[1] if len(argv) > 1 else "."
-        watch_dashboard(repo)
+        repo, = _parse_args(argv)
+        _safe_run(watch_dashboard, repo)
         return None
 
     if first == "learn":
@@ -407,18 +441,12 @@ def expand_shortcuts(argv):
         rest = [a for a in argv[1:] if a not in ("--beginner", "-b")]
         repo = rest[0] if rest else "."
         output = rest[1] if len(rest) > 1 else "learn.html"
-        learn_report(repo, output, beginner=beginner)
+        _safe_run(learn_report, repo, output, beginner=beginner)
         return None
 
     if first == "trends":
-        repo = "."
-        weeks = 8
-        if len(argv) > 1 and argv[1].isdigit():
-            weeks = int(argv[1])
-            repo = argv[2] if len(argv) > 2 else "."
-        elif len(argv) > 1:
-            repo = argv[1]
-        trends_report(repo, weeks)
+        repo, weeks = _parse_args(argv, has_days=True, default_days=8)
+        _safe_run(trends_report, repo, weeks)
         return None
 
     if first == "help":

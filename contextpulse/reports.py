@@ -573,21 +573,8 @@ def vs_report(repo_path=".", days=7):
     console.print()
 
 
-def streak_report(repo_path="."):
-    """pulse streak: Shows how many consecutive days you commit."""
-    repo = Repo(repo_path)
-
-    commit_days = set()
-    for commit in repo.iter_commits():
-        day = datetime.fromtimestamp(
-            commit.committed_date
-        ).strftime("%Y-%m-%d")
-        commit_days.add(day)
-
-    if not commit_days:
-        console.print(Panel("No commits found.", style="yellow"))
-        return
-
+def _calc_streak(commit_days):
+    """Helper: מחשב רצף נוכחי מתוך סט של ימים עם קומיטים."""
     today = datetime.now().strftime("%Y-%m-%d")
     current_streak = 0
     check_date = datetime.now()
@@ -606,6 +593,34 @@ def streak_report(repo_path="."):
                 ) - _dt_module.timedelta(days=1)
                 continue
             break
+    return current_streak
+
+
+def _get_commit_days(repo):
+    """Helper: מחזיר סט של ימים שהיו בהם קומיטים."""
+    commit_days = set()
+    try:
+        for commit in repo.iter_commits():
+            day = datetime.fromtimestamp(
+                commit.committed_date
+            ).strftime("%Y-%m-%d")
+            commit_days.add(day)
+    except ValueError:
+        pass
+    return commit_days
+
+
+def streak_report(repo_path="."):
+    """pulse streak: Shows how many consecutive days you commit."""
+    repo = Repo(repo_path)
+
+    commit_days = _get_commit_days(repo)
+
+    if not commit_days:
+        console.print(Panel("No commits found.", style="yellow"))
+        return
+
+    current_streak = _calc_streak(commit_days)
 
     # Find best streak ever
     sorted_days = sorted(commit_days)
@@ -1510,30 +1525,9 @@ def watch_dashboard(repo_path="."):
                     break
                 today_commits.append(commit)
 
-            # רצף
-            commit_days = set()
-            for commit in repo.iter_commits():
-                day = datetime.fromtimestamp(
-                    commit.committed_date
-                ).strftime("%Y-%m-%d")
-                commit_days.add(day)
-
-            streak = 0
-            check = now
-            while True:
-                day_str = check.strftime("%Y-%m-%d")
-                if day_str in commit_days:
-                    streak += 1
-                    check = check.replace(
-                        hour=0, minute=0, second=0
-                    ) - _dt_module.timedelta(days=1)
-                else:
-                    if streak == 0 and day_str == now.strftime("%Y-%m-%d"):
-                        check = check.replace(
-                            hour=0, minute=0, second=0
-                        ) - _dt_module.timedelta(days=1)
-                        continue
-                    break
+            # רצף — משתמשים בפונקציות עזר במקום לשכפל קוד
+            commit_days = _get_commit_days(repo)
+            streak = _calc_streak(commit_days)
 
             # קומיט אחרון
             try:
