@@ -159,9 +159,14 @@ def main():
     args = parser.parse_args(expanded)
 
     # === Set language, theme, accessibility ===
-    config.current_lang = args.lang
-    config.current_theme = THEMES.get(args.theme, THEMES["default"])
-    config.accessible_mode = args.accessible
+    # expand_shortcuts (Step 0) may have already set these.
+    # Only override from argparse if still at default values.
+    if config.current_lang == "en" and hasattr(args, "lang"):
+        config.current_lang = args.lang
+    if config.current_theme == THEMES["default"] and hasattr(args, "theme"):
+        config.current_theme = THEMES.get(args.theme, THEMES["default"])
+    if args.accessible:
+        config.accessible_mode = True
 
     # === Interactive mode ===
     if args.interactive:
