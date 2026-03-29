@@ -27,7 +27,7 @@ def scan_code(repo_path="."):
         console.print(f"[red]Error:[/red] '{repo_path}' is not a Git repository.")
         return
 
-    console.print()
+    show_logo()
     console.print(
         Panel.fit(
             "[bold cyan]ContextPulse[/bold cyan] - Code Scanner",
@@ -527,11 +527,16 @@ def changelog_report(repo_path=".", output_path=None):
 
     # מילות מפתח → קטגוריית changelog
     categories = {
-        "Added": ["add", "create", "implement", "new", "introduce", "support"],
-        "Fixed": ["fix", "resolve", "patch", "correct", "repair", "bug"],
+        "Added": ["add", "create", "implement", "new", "introduce",
+                  "support", "enable", "install", "initial", "launch"],
+        "Fixed": ["fix", "resolve", "patch", "correct", "repair",
+                  "bug", "hotfix", "close"],
         "Changed": ["update", "change", "modify", "improve", "enhance",
-                     "refactor", "move", "rename", "upgrade", "bump"],
-        "Removed": ["remove", "delete", "drop", "deprecate", "clean"],
+                     "refactor", "move", "rename", "upgrade", "bump",
+                     "rewrite", "replace", "split", "merge", "adjust",
+                     "optimize", "expand", "extend", "rework"],
+        "Removed": ["remove", "delete", "drop", "deprecate", "clean",
+                     "strip", "revert"],
     }
 
     # אוספים קומיטים לפי tags (גרסאות)

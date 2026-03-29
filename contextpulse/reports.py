@@ -1210,7 +1210,7 @@ def id_report(repo_path="."):
         elif age_days > 30:
             age_str = f"{age_days // 30} months"
         else:
-            age_str = f"{age_days} days"
+            age_str = f"{max(age_days, 1)} {'day' if age_days <= 1 else 'days'}"
     except (StopIteration, Exception):
         age_str = "new"
         last_commit = datetime.now()
@@ -1722,7 +1722,7 @@ def leaderboard_report(repo_path=".", days=30):
     console.print(
         Panel.fit(
             f"[{th('title')}]Leaderboard[/{th('title')}] — last {days} days",
-            subtitle=f"{len(authors)} contributors",
+            subtitle=f"{len(authors)} {'contributor' if len(authors) == 1 else 'contributors'}",
             border_style=th("border"),
         )
     )

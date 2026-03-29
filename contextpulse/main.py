@@ -34,6 +34,7 @@ from rich.panel import Panel
 
 from .config import THEMES, current_lang, current_theme
 from . import config
+from . import __version__
 from .ui import console, show_logo
 from .git_utils import get_commits, get_compare_commits
 from .reports import display_report
@@ -121,7 +122,7 @@ def main():
     parser.add_argument(
         "--version", "-v",
         action="version",
-        version="ContextPulse 1.3.1",
+        version=f"ContextPulse {__version__}",
     )
     parser.add_argument(
         "--html",
