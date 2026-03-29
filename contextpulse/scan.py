@@ -109,49 +109,68 @@ def scan_code(repo_path="."):
     console.print("[bold]Quality Check[/bold]")
     issues = []
     suggestions = []
+    score = 0
+    checks = 0
 
+    # בדיקה 1: README
     has_readme = any(f.lower().startswith("readme") for f in all_files)
+    checks += 1
     if has_readme:
         console.print("  [green]✓[/green] README found")
+        score += 1
     else:
         console.print("  [red]✗[/red] No README file")
         issues.append("Add a README.md to explain your project")
 
+    # בדיקה 2: .gitignore
     has_gitignore = ".gitignore" in all_files
+    checks += 1
     if has_gitignore:
         console.print("  [green]✓[/green] .gitignore found")
+        score += 1
     else:
         console.print("  [red]✗[/red] No .gitignore file")
         issues.append("Add .gitignore to avoid tracking unnecessary files")
 
+    # בדיקה 3: Tests
     test_files = [f for f in all_files if "test" in f.lower()]
+    checks += 1
     if test_files:
         console.print(f"  [green]✓[/green] Tests found ({len(test_files)} test files)")
+        score += 1
     else:
         console.print("  [yellow]![/yellow] No test files found")
         suggestions.append("Consider adding tests to catch bugs early")
 
+    # בדיקה 4: Dependencies
     has_deps = any(
         f in all_files
         for f in ["requirements.txt", "pyproject.toml", "setup.py", "package.json"]
     )
+    checks += 1
     if has_deps:
         console.print("  [green]✓[/green] Dependency file found")
+        score += 1
     else:
         console.print("  [yellow]![/yellow] No dependency file found")
         suggestions.append("Add requirements.txt or pyproject.toml")
 
+    # בדיקה 5: LICENSE
     has_license = any(f.lower().startswith("license") for f in all_files)
+    checks += 1
     if has_license:
         console.print("  [green]✓[/green] LICENSE found")
+        score += 1
     else:
         console.print("  [yellow]![/yellow] No LICENSE file")
         suggestions.append("Add a LICENSE file (MIT is a good default)")
 
+    # בדיקה 6: Oversized files
     big_files = [
         f for f, s in file_sizes.items()
         if s > 1024 * 1024
     ]
+    checks += 1
     if big_files:
         console.print(
             f"  [yellow]![/yellow] {len(big_files)} files larger than 1MB"
@@ -161,6 +180,130 @@ def scan_code(repo_path="."):
         )
     else:
         console.print("  [green]✓[/green] No oversized files")
+        score += 1
+
+    # בדיקה 7: secrets / API keys בקוד
+    secret_patterns = [".env", "credentials", "secret", "api_key", "apikey",
+                       "password", "token", "private_key"]
+    suspicious_files = [
+        f for f in all_files
+        if any(p in f.lower() for p in secret_patterns)
+        and not f.endswith(".example") and not f.endswith(".sample")
+    ]
+    # Also check file contents for common patterns
+    secret_in_code = []
+    for filepath in all_files:
+        if Path(filepath).suffix.lower() not in (".py", ".js", ".ts", ".json", ".yml", ".yaml"):
+            continue
+        full_path = Path(repo_path) / filepath
+        if not full_path.exists():
+            continue
+        try:
+            content = full_path.read_text(encoding="utf-8", errors="replace")
+            for pattern in ["API_KEY=", "SECRET_KEY=", "PASSWORD=", "TOKEN=",
+                            "aws_access_key", "sk-", "ghp_", "glpat-"]:
+                if pattern in content:
+                    secret_in_code.append(filepath)
+                    break
+        except Exception:
+            pass
+
+    if suspicious_files or secret_in_code:
+        all_suspects = set(suspicious_files + secret_in_code)
+        console.print(
+            f"  [red]✗[/red] {len(all_suspects)} potential secret(s) found"
+        )
+        issues.append(f"Possible secrets: {', '.join(list(all_suspects)[:3])}")
+    else:
+        console.print("  [green]✓[/green] No secrets detected")
+        score += 1
+    checks += 1
+
+    # בדיקה 8: CI/CD
+    has_ci = any(
+        f.startswith(".github/workflows") or f == ".gitlab-ci.yml"
+        or f == "Jenkinsfile" or f.startswith(".circleci")
+        for f in all_files
+    )
+    if has_ci:
+        console.print("  [green]✓[/green] CI/CD configuration found")
+        score += 1
+    else:
+        console.print("  [yellow]![/yellow] No CI/CD pipeline")
+        suggestions.append("Add GitHub Actions or CI/CD for automated testing")
+    checks += 1
+
+    # בדיקה 9: TODO/FIXME בקוד
+    todo_count = 0
+    fixme_count = 0
+    for filepath in all_files:
+        if Path(filepath).suffix.lower() not in (".py", ".js", ".ts", ".html", ".css"):
+            continue
+        full_path = Path(repo_path) / filepath
+        if not full_path.exists():
+            continue
+        try:
+            content = full_path.read_text(encoding="utf-8", errors="replace")
+            todo_count += content.upper().count("TODO")
+            fixme_count += content.upper().count("FIXME")
+        except Exception:
+            pass
+    total_todos = todo_count + fixme_count
+    if total_todos == 0:
+        console.print("  [green]✓[/green] No TODO/FIXME left in code")
+        score += 1
+    elif total_todos <= 5:
+        console.print(f"  [yellow]![/yellow] {total_todos} TODO/FIXME found")
+        suggestions.append(f"Resolve {total_todos} TODO/FIXME comments")
+    else:
+        console.print(f"  [red]✗[/red] {total_todos} TODO/FIXME found")
+        issues.append(f"{total_todos} unresolved TODO/FIXME in code")
+    checks += 1
+
+    # בדיקה 10: Docker
+    has_docker = any(
+        f.lower() in ("dockerfile", "docker-compose.yml", "docker-compose.yaml")
+        or f.lower().startswith("dockerfile")
+        for f in all_files
+    )
+    if has_docker:
+        console.print("  [green]✓[/green] Docker configuration found")
+        score += 1
+    else:
+        console.print("  [dim]·[/dim] No Docker (optional)")
+    checks += 1
+
+    # בדיקה 11: קוד vs הערות — יחס בריא
+    total_code_lines = 0
+    total_comment_lines = 0
+    for filepath in all_files:
+        if Path(filepath).suffix.lower() not in (".py", ".js", ".ts"):
+            continue
+        full_path = Path(repo_path) / filepath
+        if not full_path.exists():
+            continue
+        try:
+            for line in full_path.read_text(encoding="utf-8", errors="replace").split("\n"):
+                stripped = line.strip()
+                if stripped:
+                    total_code_lines += 1
+                    if stripped.startswith("#") or stripped.startswith("//"):
+                        total_comment_lines += 1
+        except Exception:
+            pass
+
+    if total_code_lines > 0:
+        comment_pct = round(total_comment_lines / total_code_lines * 100)
+        if comment_pct >= 5:
+            console.print(f"  [green]✓[/green] Comment ratio: {comment_pct}% (healthy)")
+            score += 1
+        elif comment_pct >= 1:
+            console.print(f"  [yellow]![/yellow] Comment ratio: {comment_pct}% (could use more)")
+            suggestions.append("Add more comments to explain complex logic")
+        else:
+            console.print(f"  [red]✗[/red] Comment ratio: {comment_pct}% (very low)")
+            issues.append("Almost no comments — add explanations")
+    checks += 1
 
     # === Project structure ===
     console.print()
@@ -180,30 +323,17 @@ def scan_code(repo_path="."):
         if root_files:
             console.print(f"  [dim](root)[/dim] ({len(root_files)} files)")
 
-    # === Score ===
+    # === Score (already calculated above, checks 1-11) ===
     console.print()
-    score = 0
-    checks = 6
-    if has_readme:
-        score += 1
-    if has_gitignore:
-        score += 1
-    if test_files:
-        score += 1
-    if has_deps:
-        score += 1
-    if has_license:
-        score += 1
-    if not big_files:
-        score += 1
 
-    if score == checks:
+    pct = round(score / checks * 100) if checks > 0 else 0
+    if pct >= 90:
         color = "green"
         grade = "Excellent!"
-    elif score >= 4:
+    elif pct >= 70:
         color = "cyan"
         grade = "Good"
-    elif score >= 2:
+    elif pct >= 50:
         color = "yellow"
         grade = "Needs work"
     else:
