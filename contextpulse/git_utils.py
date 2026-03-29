@@ -20,7 +20,13 @@ def get_commits(repo_path=".", days=7, author_filter=None):
     since_date = datetime.now().timestamp() - (days * 24 * 60 * 60)
 
     commits = []
-    for commit in repo.iter_commits():
+    try:
+        commit_iter = repo.iter_commits()
+    except ValueError:
+        # Empty repo (no commits yet)
+        return commits
+
+    for commit in commit_iter:
         if commit.committed_date < since_date:
             break
 
@@ -77,6 +83,8 @@ def get_compare_commits(repo_path, compare_str):
     commits = []
     for commit in compare_commits:
         changed_files = list(commit.stats.files.keys())
+        insertions = commit.stats.total.get("insertions", 0)
+        deletions = commit.stats.total.get("deletions", 0)
         commit_dt = datetime.fromtimestamp(commit.committed_date)
         commits.append({
             "hash": commit.hexsha[:7],
@@ -88,6 +96,8 @@ def get_compare_commits(repo_path, compare_str):
             "weekday": commit_dt.strftime("%A"),
             "files_changed": len(changed_files),
             "files": changed_files,
+            "insertions": insertions,
+            "deletions": deletions,
         })
 
     return commits

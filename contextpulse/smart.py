@@ -132,7 +132,7 @@ def expand_shortcuts(argv):
             "streak": "streak", "רצף": "streak", "רציפות": "streak",
             "consecutive": "streak",
             "scan": "scan", "סריקה": "scan", "בריאות": "scan",
-            "health": "scan", "quality": "scan", "איכות": "scan",
+            "health": "scan",
             "בדיקה": "scan", "check": "scan",
             "vs": "vs", "השוואה": "vs", "compare": "vs", "להשוות": "vs",
             "versus": "vs", "לעומת": "vs", "difference": "vs",

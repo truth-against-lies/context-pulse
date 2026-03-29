@@ -96,7 +96,7 @@ def generate_summary(commits, categories):
 
     activity_str = ", ".join(activities)
     summary = (
-        f"You made {total_commits} commits, focusing mainly on "
+        f"You made {total_commits} {'commit' if total_commits == 1 else 'commits'}, focusing mainly on "
         f"{top_cat} ({top_pct}%). "
         f"Main activities: {activity_str}."
     )
@@ -1176,14 +1176,19 @@ def id_report(repo_path="."):
     top_lang = lang_counts.most_common(1)[0] if lang_counts else ("Unknown", 0)
     lang_pct = round(top_lang[1] / len(all_files) * 100) if all_files else 0
 
-    # גיל הפרויקט
-    all_commits = list(repo.iter_commits())
-    total_commits = len(all_commits)
-    authors = set(str(c.author) for c in all_commits)
+    # גיל הפרויקט — לא טוענים הכל לזיכרון
+    total_commits = int(repo.git.rev_list("--count", "HEAD"))
+    authors = set()
+    for c in repo.iter_commits():
+        authors.add(str(c.author))
 
-    if all_commits:
-        first_commit = datetime.fromtimestamp(all_commits[-1].committed_date)
-        last_commit = datetime.fromtimestamp(all_commits[0].committed_date)
+    try:
+        last_commit_obj = next(repo.iter_commits())
+        last_commit = datetime.fromtimestamp(last_commit_obj.committed_date)
+        # מוצאים את הקומיט הראשון (הכי ישן)
+        first_hash = repo.git.rev_list("--max-parents=0", "HEAD").split("\n")[0]
+        first_commit_obj = repo.commit(first_hash)
+        first_commit = datetime.fromtimestamp(first_commit_obj.committed_date)
         age_days = (datetime.now() - first_commit).days
         if age_days > 365:
             age_str = f"{age_days // 365}y {(age_days % 365) // 30}m"
@@ -1191,7 +1196,7 @@ def id_report(repo_path="."):
             age_str = f"{age_days // 30} months"
         else:
             age_str = f"{age_days} days"
-    else:
+    except (StopIteration, Exception):
         age_str = "new"
         last_commit = datetime.now()
 

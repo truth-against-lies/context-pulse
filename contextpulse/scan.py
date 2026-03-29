@@ -741,7 +741,6 @@ def install_hook(repo_path="."):
     pulse hook: מתקין git hook שמראה מיני-דוח אחרי כל commit.
     יוצר קובץ .git/hooks/post-commit שמריץ pulse streak בקצרה.
     """
-    from datetime import datetime
     repo = Repo(repo_path)
     hooks_dir = Path(repo_path) / ".git" / "hooks"
 

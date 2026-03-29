@@ -235,7 +235,7 @@ def test_summary_with_fixes():
     categories = group_by_category(commits)
     summary = generate_summary(commits, categories)
     assert "bug fixes" in summary
-    assert "1 commits" in summary
+    assert "1 commit" in summary
 
 
 def test_summary_with_add():
