@@ -1062,3 +1062,412 @@ def blame_report(repo_path=".", top_n=10):
         )
     )
     console.print()
+
+
+def standup_report(repo_path=".", author_filter=None):
+    """
+    pulse standup: יוצר דוח סטנדאפ קצר — מוכן להדבקה ב-Slack.
+    מראה מה עשית אתמול (או היום) בפורמט נקי.
+    """
+    repo = Repo(repo_path)
+
+    # מחפשים קומיטים מאתמול והיום
+    now = datetime.now()
+    today_start = now.replace(hour=0, minute=0, second=0).timestamp()
+    yesterday_start = today_start - (24 * 60 * 60)
+
+    today_commits = []
+    yesterday_commits = []
+
+    for commit in repo.iter_commits():
+        if commit.committed_date < yesterday_start:
+            break
+
+        if author_filter:
+            if author_filter.lower() not in str(commit.author).lower():
+                continue
+
+        msg = commit.message.strip().split("\n")[0]
+        files = list(commit.stats.files.keys())
+        ins = commit.stats.total.get("insertions", 0)
+        dels = commit.stats.total.get("deletions", 0)
+        entry = {"message": msg, "files": len(files), "ins": ins, "dels": dels}
+
+        if commit.committed_date >= today_start:
+            today_commits.append(entry)
+        else:
+            yesterday_commits.append(entry)
+
+    show_logo()
+
+    # אתמול
+    if yesterday_commits:
+        console.print("[bold]Yesterday:[/bold]")
+        total_files = 0
+        total_ins = 0
+        for c in yesterday_commits:
+            console.print(f"  • {c['message']}")
+            total_files += c["files"]
+            total_ins += c["ins"]
+        console.print(
+            f"  [dim]{len(yesterday_commits)} tasks · "
+            f"{total_files} files · +{total_ins} lines[/dim]"
+        )
+    else:
+        console.print("[dim]Yesterday: no commits[/dim]")
+
+    console.print()
+
+    # היום
+    if today_commits:
+        console.print("[bold]Today so far:[/bold]")
+        for c in today_commits:
+            console.print(f"  • {c['message']}")
+    else:
+        console.print("[dim]Today: no commits yet[/dim]")
+
+    # פלט מוכן להדבקה
+    console.print()
+    console.print("[bold yellow]Copy-paste for Slack:[/bold yellow]")
+    console.print("[dim]─────────────────────[/dim]")
+
+    if yesterday_commits:
+        console.print("Yesterday I:")
+        for c in yesterday_commits:
+            console.print(f"• {c['message']}")
+
+    if today_commits:
+        console.print("Today:")
+        for c in today_commits:
+            console.print(f"• {c['message']}")
+    else:
+        console.print("Today: starting work")
+
+    console.print("[dim]─────────────────────[/dim]")
+    console.print()
+
+
+def id_report(repo_path="."):
+    """
+    pulse id: כרטיס ביקור של הריפו — סיכום של הפרויקט בקופסה אחת.
+    """
+    repo = Repo(repo_path)
+    project_name = Path(repo_path).resolve().name
+
+    # שפה ראשית
+    all_files = repo.git.ls_files().split("\n")
+    all_files = [f for f in all_files if f]
+    lang_counts = Counter()
+    total_lines = 0
+
+    for filepath in all_files:
+        cat = get_category(filepath)
+        if cat not in ("Images", "Config", "Docs", "Other"):
+            lang_counts[cat] += 1
+        full_path = Path(repo_path) / filepath
+        if full_path.exists():
+            try:
+                total_lines += len(
+                    full_path.read_text(encoding="utf-8", errors="replace").split("\n")
+                )
+            except Exception:
+                pass
+
+    top_lang = lang_counts.most_common(1)[0] if lang_counts else ("Unknown", 0)
+    lang_pct = round(top_lang[1] / len(all_files) * 100) if all_files else 0
+
+    # גיל הפרויקט
+    all_commits = list(repo.iter_commits())
+    total_commits = len(all_commits)
+    authors = set(str(c.author) for c in all_commits)
+
+    if all_commits:
+        first_commit = datetime.fromtimestamp(all_commits[-1].committed_date)
+        last_commit = datetime.fromtimestamp(all_commits[0].committed_date)
+        age_days = (datetime.now() - first_commit).days
+        if age_days > 365:
+            age_str = f"{age_days // 365}y {(age_days % 365) // 30}m"
+        elif age_days > 30:
+            age_str = f"{age_days // 30} months"
+        else:
+            age_str = f"{age_days} days"
+    else:
+        age_str = "new"
+        last_commit = datetime.now()
+
+    # License
+    license_file = None
+    for name in ["LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE"]:
+        if name in all_files:
+            license_file = name
+            break
+    license_str = "MIT" if license_file else "None"
+
+    # Version (מחפש ב-__init__.py או pyproject.toml)
+    version = "—"
+    for f in all_files:
+        if f.endswith("__init__.py"):
+            try:
+                content = (Path(repo_path) / f).read_text(encoding="utf-8")
+                for line in content.split("\n"):
+                    if "__version__" in line and "=" in line:
+                        version = line.split("=")[1].strip().strip('"').strip("'")
+                        break
+            except Exception:
+                pass
+            if version != "—":
+                break
+
+    # הצגה
+    color = CATEGORY_COLORS.get(top_lang[0], "cyan")
+
+    console.print()
+    card = (
+        f"[bold {color}]{project_name}[/bold {color}]\n"
+        f"\n"
+        f"  Language    [{color}]{top_lang[0]} ({lang_pct}%)[/{color}]\n"
+        f"  Files       {len(all_files)}\n"
+        f"  Lines       {total_lines:,}\n"
+        f"  Commits     {total_commits}\n"
+        f"  Authors     {len(authors)}\n"
+        f"  Age         {age_str}\n"
+        f"  License     {license_str}\n"
+        f"  Version     {version}\n"
+        f"  Last commit {last_commit.strftime('%Y-%m-%d')}"
+    )
+
+    console.print(
+        Panel(card, border_style=color, padding=(1, 3))
+    )
+    console.print()
+
+
+def commit_quality_report(repo_path=".", count=100):
+    """
+    pulse quality: מנתח את איכות הודעות הקומיט.
+    בודק: אורך, מתחיל בפועל, תיאורי, לא סתם "fix" או "update".
+    """
+    repo = Repo(repo_path)
+
+    messages = []
+    for commit in repo.iter_commits(max_count=count):
+        msg = commit.message.strip().split("\n")[0]
+        messages.append(msg)
+
+    if not messages:
+        console.print(Panel("No commits found.", style="yellow"))
+        return
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[{th('title')}]Commit Message Quality[/{th('title')}]",
+            subtitle=f"analyzing {len(messages)} commits",
+            border_style=th("border"),
+        )
+    )
+
+    # בדיקות
+    score = 100
+    checks = []
+
+    # 1. אורך — יותר מ-10 תווים
+    short = [m for m in messages if len(m) < 10]
+    short_pct = round(len(short) / len(messages) * 100)
+    if short_pct > 20:
+        checks.append(f"[red]✗[/red] {short_pct}% are under 10 characters (too short)")
+        score -= min(short_pct, 30)
+    else:
+        checks.append(f"[green]✓[/green] {100 - short_pct}% are over 10 characters")
+
+    # 2. מתחיל בפועל (verb)
+    verbs = ["add", "fix", "update", "remove", "refactor", "improve",
+             "create", "implement", "change", "move", "rename", "delete",
+             "merge", "revert", "bump", "release", "deploy", "test",
+             "enable", "disable", "configure", "set", "use"]
+    starts_with_verb = [
+        m for m in messages
+        if any(m.lower().startswith(v) for v in verbs)
+    ]
+    verb_pct = round(len(starts_with_verb) / len(messages) * 100)
+    if verb_pct >= 60:
+        checks.append(f"[green]✓[/green] {verb_pct}% start with a verb (good!)")
+    else:
+        checks.append(f"[yellow]![/yellow] Only {verb_pct}% start with a verb")
+        score -= 15
+
+    # 3. לא גנריות מדי
+    generic = ["fix", "update", "changes", "wip", "test", "stuff", "misc", "tmp"]
+    generic_msgs = [m for m in messages if m.lower().strip() in generic]
+    generic_pct = round(len(generic_msgs) / len(messages) * 100)
+    if generic_pct > 10:
+        checks.append(
+            f"[red]✗[/red] {generic_pct}% are generic "
+            f"(just 'fix', 'update', 'wip'...)"
+        )
+        score -= min(generic_pct * 2, 25)
+    else:
+        checks.append(f"[green]✓[/green] {100 - generic_pct}% are descriptive")
+
+    # 4. אורך ממוצע
+    avg_len = round(sum(len(m) for m in messages) / len(messages))
+    if avg_len >= 30:
+        checks.append(f"[green]✓[/green] Average length: {avg_len} chars (good)")
+    elif avg_len >= 15:
+        checks.append(f"[yellow]![/yellow] Average length: {avg_len} chars (could be longer)")
+        score -= 10
+    else:
+        checks.append(f"[red]✗[/red] Average length: {avg_len} chars (too short)")
+        score -= 20
+
+    # 5. Co-authored (בדיקה אם יש credit)
+    coauthored = [m for m in messages if "co-authored" in m.lower()]
+    if coauthored:
+        checks.append(f"[green]✓[/green] {len(coauthored)} commits credit co-authors")
+
+    score = max(score, 0)
+
+    # הצגה
+    console.print()
+    for check in checks:
+        console.print(f"  {check}")
+
+    console.print()
+    if score >= 80:
+        color = th("positive")
+        grade = "Excellent"
+    elif score >= 60:
+        color = "yellow"
+        grade = "Good"
+    elif score >= 40:
+        color = "yellow"
+        grade = "Needs improvement"
+    else:
+        color = th("negative")
+        grade = "Poor"
+
+    console.print(
+        Panel(
+            f"[{color}]Score: {score}/100 — {grade}[/{color}]",
+            title="Commit Message Quality",
+            border_style=color,
+        )
+    )
+
+    # טיפים
+    if score < 80:
+        console.print()
+        console.print("[bold]Tips:[/bold]")
+        if short_pct > 20:
+            console.print("  • Write what you changed AND why")
+        if verb_pct < 60:
+            console.print("  • Start with a verb: Add, Fix, Update, Remove...")
+        if generic_pct > 10:
+            console.print("  • Be specific: 'Fix login timeout' > 'fix'")
+        if avg_len < 30:
+            console.print("  • Aim for 30+ characters per message")
+    console.print()
+
+
+def code_age_report(repo_path="."):
+    """
+    pulse age: מראה את הגיל של כל קובץ — מתי נגעו בו לאחרונה.
+    קבצים ישנים = אולי צריך לעדכן או למחוק.
+    """
+    repo = Repo(repo_path)
+    project_name = Path(repo_path).resolve().name
+
+    all_files = repo.git.ls_files().split("\n")
+    all_files = [f for f in all_files if f]
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[{th('title')}]Code Age — {project_name}[/{th('title')}]",
+            border_style=th("border"),
+        )
+    )
+
+    # מוצאים מתי כל קובץ שונה לאחרונה
+    file_ages = {}
+    now = datetime.now()
+
+    for filepath in all_files:
+        try:
+            last_commit = next(repo.iter_commits(paths=filepath, max_count=1))
+            last_date = datetime.fromtimestamp(last_commit.committed_date)
+            days_ago = (now - last_date).days
+            file_ages[filepath] = {
+                "date": last_date.strftime("%Y-%m-%d"),
+                "days": days_ago,
+                "author": str(last_commit.author),
+            }
+        except (StopIteration, Exception):
+            pass
+
+    if not file_ages:
+        console.print(Panel("No file history found.", style="yellow"))
+        return
+
+    # ממיינים: הכי ישן למעלה
+    sorted_files = sorted(
+        file_ages.items(), key=lambda x: x[1]["days"], reverse=True
+    )
+
+    console.print()
+
+    # ישנים (מעל 90 יום)
+    stale = [(f, d) for f, d in sorted_files if d["days"] > 90]
+    fresh = [(f, d) for f, d in sorted_files if d["days"] <= 7]
+    medium = [(f, d) for f, d in sorted_files if 7 < d["days"] <= 90]
+
+    if stale:
+        table = Table(
+            title=f"Stale Files ({len(stale)} files, 90+ days old)",
+            show_header=True,
+            header_style="bold red",
+        )
+        table.add_column("File", style="white")
+        table.add_column("Last Changed", style="dim")
+        table.add_column("Days Ago", justify="right", style="red")
+        table.add_column("By", style="dim")
+
+        for filepath, data in stale[:15]:
+            table.add_row(
+                filepath, data["date"],
+                str(data["days"]), data["author"],
+            )
+        console.print(table)
+
+    if medium:
+        console.print()
+        table2 = Table(
+            title=f"Active Files ({len(medium)} files, 7-90 days)",
+            show_header=True,
+            header_style="bold yellow",
+        )
+        table2.add_column("File", style="white")
+        table2.add_column("Last Changed", style="dim")
+        table2.add_column("Days", justify="right", style="yellow")
+
+        for filepath, data in medium[:10]:
+            table2.add_row(filepath, data["date"], str(data["days"]))
+        console.print(table2)
+
+    if fresh:
+        console.print()
+        console.print(
+            f"  [{th('positive')}]Fresh ({len(fresh)} files changed in last 7 days)[/{th('positive')}]"
+        )
+
+    # סיכום
+    avg_age = round(
+        sum(d["days"] for d in file_ages.values()) / len(file_ages)
+    )
+    console.print()
+    console.print(f"  [bold]Average file age:[/bold] {avg_age} days")
+    console.print(
+        f"  [bold]Stale files:[/bold] {len(stale)} / {len(file_ages)} "
+        f"({round(len(stale)/len(file_ages)*100)}%)"
+    )
+    console.print()

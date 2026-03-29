@@ -15,6 +15,7 @@ from .scan import scan_code, multi_report, init_config, learn_report
 from .reports import (
     team_report, hours_report, vs_report, streak_report,
     pretty_log, trends_report, diff_report, blame_report,
+    standup_report, id_report, commit_quality_report, code_age_report,
 )
 from .ui import console, show_help
 
@@ -45,6 +46,10 @@ SHORTCUTS = {
     "learn": None,
     "diff": None,
     "blame": None,
+    "standup": None,
+    "id": None,
+    "quality": None,
+    "age": None,
     "help": None,
     # === Hebrew shortcuts ===
     "היום": ["--today"],
@@ -60,6 +65,10 @@ SHORTCUTS = {
     "לוג": None,
     "שינויים": None,
     "בעלות": None,
+    "סטנדאפ": None,
+    "זהות": None,
+    "איכות": None,
+    "גיל": None,
     "עזרה": None,
 }
 
@@ -81,7 +90,8 @@ def expand_shortcuts(argv):
         "צוות": "team", "שעות": "hours", "לימוד": "learn",
         "מגמות": "trends", "רצף": "streak", "סריקה": "scan",
         "השוואה": "vs", "לוג": "log", "שינויים": "diff",
-        "בעלות": "blame", "עזרה": "help",
+        "בעלות": "blame", "סטנדאפ": "standup", "זהות": "id",
+        "איכות": "quality", "גיל": "age", "עזרה": "help",
     }
     if first in hebrew_to_english:
         first = hebrew_to_english[first]
@@ -127,6 +137,15 @@ def expand_shortcuts(argv):
             "blame": "blame", "בעלות": "blame", "ownership": "blame",
             "מי כתב": "blame", "who wrote": "blame", "who owns": "blame",
             "bus factor": "blame", "אחראי": "blame",
+            "standup": "standup", "סטנדאפ": "standup",
+            "morning": "standup", "בוקר": "standup",
+            "what did i do": "standup", "מה עשיתי אתמול": "standup",
+            "id": "id", "זהות": "id", "identity": "id", "card": "id",
+            "כרטיס": "id", "about": "id",
+            "quality": "quality", "איכות הודעות": "quality",
+            "message quality": "quality", "commit quality": "quality",
+            "age": "age", "גיל": "age", "stale": "age", "old": "age",
+            "ישן": "age", "מת": "age",
         }
 
         # === Intents ===
@@ -324,6 +343,30 @@ def expand_shortcuts(argv):
     if first == "blame":
         repo = argv[1] if len(argv) > 1 else "."
         blame_report(repo)
+        return None
+
+    if first == "standup":
+        repo = argv[1] if len(argv) > 1 else "."
+        standup_report(repo)
+        return None
+
+    if first == "id":
+        repo = argv[1] if len(argv) > 1 else "."
+        id_report(repo)
+        return None
+
+    if first == "quality":
+        repo = argv[1] if len(argv) > 1 else "."
+        count = 100
+        if len(argv) > 1 and argv[1].isdigit():
+            count = int(argv[1])
+            repo = argv[2] if len(argv) > 2 else "."
+        commit_quality_report(repo, count)
+        return None
+
+    if first == "age":
+        repo = argv[1] if len(argv) > 1 else "."
+        code_age_report(repo)
         return None
 
     if first == "learn":
