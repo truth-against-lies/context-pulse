@@ -19,7 +19,7 @@ from .reports import (
     team_report, hours_report, vs_report, streak_report,
     pretty_log, trends_report, diff_report, blame_report,
     standup_report, id_report, commit_quality_report, code_age_report,
-    watch_dashboard,
+    watch_dashboard, badges_report, leaderboard_report,
 )
 from .ui import console, show_help
 from rich.panel import Panel
@@ -115,6 +115,8 @@ SHORTCUTS = {
     "changelog": None,
     "hook": None,
     "watch": None,
+    "badges": None,
+    "leaderboard": None,
     "help": None,
     # === Hebrew shortcuts ===
     "היום": ["--today"],
@@ -137,6 +139,8 @@ SHORTCUTS = {
     "שינויון": None,     # = changelog
     "הוק": None,         # = hook
     "צפייה": None,       # = watch
+    "הישגים": None,      # = badges
+    "דירוג": None,       # = leaderboard
     "עזרה": None,
 }
 
@@ -149,6 +153,7 @@ HEBREW_COMMANDS = {
     "בעלות": "blame", "סטנדאפ": "standup", "זהות": "id",
     "איכות": "quality", "גיל": "age",
     "שינויון": "changelog", "הוק": "hook", "צפייה": "watch",
+    "הישגים": "badges", "דירוג": "leaderboard",
     "עזרה": "help",
 }
 
@@ -198,6 +203,9 @@ SMART_KEYWORDS = {
     "changelog": "changelog",
     "watch": "watch", "צפייה": "watch", "live": "watch",
     "hook": "hook",
+    "badges": "badges", "הישגים": "badges", "achievements": "badges",
+    "leaderboard": "leaderboard", "דירוג": "leaderboard", "ranking": "leaderboard",
+    "top": "leaderboard",
 }
 
 SMART_INTENTS = {
@@ -339,6 +347,8 @@ COMMAND_TABLE = {
     "hook":      (install_hook, None, None),
     "watch":     (watch_dashboard, None, None),
     "trends":    (trends_report, True, 8),
+    "badges":    (badges_report, None, None),
+    "leaderboard": (leaderboard_report, True, 30),
 }
 
 

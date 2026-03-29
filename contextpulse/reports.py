@@ -1493,6 +1493,280 @@ def code_age_report(repo_path="."):
     console.print()
 
 
+def badges_report(repo_path="."):
+    """
+    pulse badges: הישגים אלגנטיים מבוססי Git history.
+    כל badge דורש תנאי מסוים — אם עמדת בו, הוא unlocked.
+    """
+    repo = Repo(repo_path)
+
+    # אוספים נתונים
+    commit_days = _get_commit_days(repo)
+    streak = _calc_streak(commit_days)
+
+    total_commits = 0
+    fix_commits = 0
+    add_commits = 0
+    night_commits = 0
+    weekend_commits = 0
+    languages = set()
+    files_touched = set()
+    biggest_commit_files = 0
+
+    try:
+        for commit in repo.iter_commits():
+            total_commits += 1
+            msg = commit.message.strip().lower()
+            commit_dt = datetime.fromtimestamp(commit.committed_date)
+
+            if msg.startswith("fix"):
+                fix_commits += 1
+            if msg.startswith("add") or msg.startswith("create"):
+                add_commits += 1
+            if commit_dt.hour >= 22 or commit_dt.hour < 6:
+                night_commits += 1
+            if commit_dt.strftime("%A") in ("Saturday", "Sunday"):
+                weekend_commits += 1
+
+            changed = list(commit.stats.files.keys())
+            biggest_commit_files = max(biggest_commit_files, len(changed))
+            for f in changed:
+                files_touched.add(f)
+                cat = get_category(f)
+                if cat not in ("Config", "Docs", "Images", "Other"):
+                    languages.add(cat)
+    except ValueError:
+        pass
+
+    # הגדרת badges
+    badges = [
+        {
+            "name": "First Commit",
+            "desc": "Made your first commit",
+            "unlocked": total_commits >= 1,
+            "icon": "·",
+        },
+        {
+            "name": "Getting Started",
+            "desc": "10+ commits",
+            "unlocked": total_commits >= 10,
+            "icon": "·",
+        },
+        {
+            "name": "Centurion",
+            "desc": "100+ commits",
+            "unlocked": total_commits >= 100,
+            "icon": "·",
+        },
+        {
+            "name": "Bug Hunter",
+            "desc": "10+ fix commits",
+            "unlocked": fix_commits >= 10,
+            "icon": "·",
+        },
+        {
+            "name": "Bug Slayer",
+            "desc": "50+ fix commits",
+            "unlocked": fix_commits >= 50,
+            "icon": "·",
+        },
+        {
+            "name": "Creator",
+            "desc": "10+ features added",
+            "unlocked": add_commits >= 10,
+            "icon": "·",
+        },
+        {
+            "name": "Night Owl",
+            "desc": "10+ commits after 10pm",
+            "unlocked": night_commits >= 10,
+            "icon": "·",
+        },
+        {
+            "name": "Weekend Warrior",
+            "desc": "10+ weekend commits",
+            "unlocked": weekend_commits >= 10,
+            "icon": "·",
+        },
+        {
+            "name": "Streak Starter",
+            "desc": "7-day commit streak",
+            "unlocked": streak >= 7,
+            "icon": "·",
+        },
+        {
+            "name": "Marathon Runner",
+            "desc": "30-day commit streak",
+            "unlocked": streak >= 30,
+            "icon": "·",
+        },
+        {
+            "name": "Polyglot",
+            "desc": "Code in 3+ languages",
+            "unlocked": len(languages) >= 3,
+            "icon": "·",
+        },
+        {
+            "name": "Linguist",
+            "desc": "Code in 5+ languages",
+            "unlocked": len(languages) >= 5,
+            "icon": "·",
+        },
+        {
+            "name": "Explorer",
+            "desc": "Touched 50+ files",
+            "unlocked": len(files_touched) >= 50,
+            "icon": "·",
+        },
+        {
+            "name": "Architect",
+            "desc": "Touched 200+ files",
+            "unlocked": len(files_touched) >= 200,
+            "icon": "·",
+        },
+        {
+            "name": "Heavy Lifter",
+            "desc": "Changed 20+ files in one commit",
+            "unlocked": biggest_commit_files >= 20,
+            "icon": "·",
+        },
+        {
+            "name": "Consistent",
+            "desc": "Active 30+ days total",
+            "unlocked": len(commit_days) >= 30,
+            "icon": "·",
+        },
+    ]
+
+    unlocked = [b for b in badges if b["unlocked"]]
+    locked = [b for b in badges if not b["unlocked"]]
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[{th('title')}]Achievements[/{th('title')}]",
+            subtitle=f"{len(unlocked)}/{len(badges)} unlocked",
+            border_style=th("border"),
+        )
+    )
+
+    # Unlocked
+    if unlocked:
+        console.print()
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column(width=3)
+        table.add_column(style="bold", width=20)
+        table.add_column(style="dim")
+
+        for b in unlocked:
+            table.add_row(
+                f"[{th('positive')}]■[/{th('positive')}]",
+                b["name"],
+                b["desc"],
+            )
+        console.print(table)
+
+    # Locked
+    if locked:
+        console.print()
+        console.print("[dim]Locked:[/dim]")
+        for b in locked:
+            console.print(f"  [dim]□ {b['name']} — {b['desc']}[/dim]")
+
+    # Stats
+    console.print()
+    console.print(
+        f"  [bold]Stats:[/bold] {total_commits} commits · "
+        f"{len(commit_days)} active days · "
+        f"{len(languages)} languages · "
+        f"{fix_commits} fixes"
+    )
+    console.print()
+
+
+def leaderboard_report(repo_path=".", days=30):
+    """
+    pulse leaderboard: דירוג מקצועי של תורמים.
+    מציג: קומיטים, קבצים, שורות, רצף — ממוין לפי קומיטים.
+    """
+    repo = Repo(repo_path)
+    since_date = datetime.now().timestamp() - (days * 24 * 60 * 60)
+
+    authors = defaultdict(lambda: {
+        "commits": 0, "files": set(), "insertions": 0,
+        "deletions": 0, "days": set(),
+    })
+
+    try:
+        for commit in repo.iter_commits():
+            if commit.committed_date < since_date:
+                break
+            name = str(commit.author)
+            authors[name]["commits"] += 1
+            authors[name]["insertions"] += commit.stats.total.get("insertions", 0)
+            authors[name]["deletions"] += commit.stats.total.get("deletions", 0)
+            for f in commit.stats.files:
+                authors[name]["files"].add(f)
+            day = datetime.fromtimestamp(
+                commit.committed_date
+            ).strftime("%Y-%m-%d")
+            authors[name]["days"].add(day)
+    except ValueError:
+        pass
+
+    if not authors:
+        console.print(Panel("No commits found.", style="yellow"))
+        return
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[{th('title')}]Leaderboard[/{th('title')}] — last {days} days",
+            subtitle=f"{len(authors)} contributors",
+            border_style=th("border"),
+        )
+    )
+
+    table = Table(show_header=True, header_style=th("header"))
+    table.add_column("Rank", style="bold", width=5)
+    table.add_column("Author", style=th("accent"))
+    table.add_column("Commits", justify="right")
+    table.add_column("Files", justify="right")
+    table.add_column("+Lines", justify="right", style=th("positive"))
+    table.add_column("-Lines", justify="right", style=th("negative"))
+    table.add_column("Active Days", justify="right", style="dim")
+
+    sorted_authors = sorted(
+        authors.items(),
+        key=lambda x: x[1]["commits"],
+        reverse=True,
+    )
+
+    for i, (name, data) in enumerate(sorted_authors, 1):
+        if i == 1:
+            rank = f"[bold] 1st[/bold]"
+        elif i == 2:
+            rank = " 2nd"
+        elif i == 3:
+            rank = " 3rd"
+        else:
+            rank = f" {i}th"
+
+        table.add_row(
+            rank,
+            name,
+            str(data["commits"]),
+            str(len(data["files"])),
+            f"+{data['insertions']}",
+            f"-{data['deletions']}",
+            str(len(data["days"])),
+        )
+
+    console.print()
+    console.print(table)
+    console.print()
+
+
 def watch_dashboard(repo_path="."):
     """
     pulse watch: דשבורד חי שמתעדכן כל 10 שניות.

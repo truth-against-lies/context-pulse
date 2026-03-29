@@ -55,6 +55,8 @@ def show_help():
     cmds.add_row("pulse age", "Code age map (stale file detection)")
     cmds.add_row("pulse learn", "Generate code guide (HTML)")
     cmds.add_row("pulse learn --beginner", "Code guide with explanations")
+    cmds.add_row("pulse badges", "Your achievements")
+    cmds.add_row("pulse leaderboard", "Contributor ranking")
     cmds.add_row("pulse changelog", "Auto-generate changelog")
     cmds.add_row("pulse log", "Pretty git log with icons")
     cmds.add_row("pulse multi PATH", "Scan all repos in a directory")
