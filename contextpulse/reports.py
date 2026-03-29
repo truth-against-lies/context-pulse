@@ -117,7 +117,7 @@ def display_activity_chart(commits):
     sorted_days = sorted(day_counts.items())
 
     console.print()
-    console.print("[bold]Daily Activity[/bold]")
+    console.print(f"[bold]{t('daily_activity')}[/bold]")
 
     max_count = max(day_counts.values())
 
@@ -143,7 +143,7 @@ def display_hot_files(commits):
 
     console.print()
     hot_table = Table(
-        title="Hot Files (most changed)",
+        title=t("hot_files"),
         show_header=True,
         header_style="bold red",
     )
@@ -326,14 +326,14 @@ def team_report(repo_path=".", days=30):
 
     console.print(
         Panel.fit(
-            f"[bold cyan]Team Report[/bold cyan] — last {days} days",
+            f"[{th('title')}]{t('team_report')}[/{th('title')}] — last {days} days",
             subtitle=f"{len(authors)} contributor(s)",
         )
     )
     console.print()
 
     table = Table(
-        title="Contributors",
+        title=t("contributors"),
         show_header=True,
         header_style="bold magenta",
     )
@@ -397,7 +397,7 @@ def hours_report(repo_path=".", days=30):
 
     # === Hours ===
     console.print()
-    console.print("[bold]Activity by Hour[/bold]")
+    console.print(f"[bold]{t('activity_by_hour')}[/bold]")
 
     max_hour = max(hour_counts.values()) if hour_counts else 1
 
@@ -425,7 +425,7 @@ def hours_report(repo_path=".", days=30):
 
     # === Days ===
     console.print()
-    console.print("[bold]Activity by Day[/bold]")
+    console.print(f"[bold]{t('activity_by_day')}[/bold]")
 
     day_order = [
         "Monday", "Tuesday", "Wednesday", "Thursday",
@@ -449,14 +449,14 @@ def hours_report(repo_path=".", days=30):
     if hour_counts:
         peak_hour = max(hour_counts, key=hour_counts.get)
         console.print(
-            f"  [bold]Peak hour:[/bold] {peak_hour:02d}:00 "
-            f"({hour_counts[peak_hour]} commits)"
+            f"  [bold]{t('peak_hour')}:[/bold] {peak_hour:02d}:00 "
+            f"({hour_counts[peak_hour]} {t('commits_word')})"
         )
     if day_counts:
         peak_day = max(day_counts, key=day_counts.get)
         console.print(
-            f"  [bold]Peak day:[/bold] {peak_day} "
-            f"({day_counts[peak_day]} commits)"
+            f"  [bold]{t('peak_day')}:[/bold] {peak_day} "
+            f"({day_counts[peak_day]} {t('commits_word')})"
         )
 
     # Pattern detection
@@ -467,13 +467,13 @@ def hours_report(repo_path=".", days=30):
     night += sum(hour_counts.get(h, 0) for h in range(0, 6))
 
     periods = {
-        "morning person (6-12)": morning,
-        "afternoon coder (12-18)": afternoon,
-        "evening hacker (18-22)": evening,
-        "night owl (22-06)": night,
+        t("morning_person"): morning,
+        t("afternoon_coder"): afternoon,
+        t("evening_hacker"): evening,
+        t("night_owl"): night,
     }
     top_period = max(periods, key=periods.get)
-    console.print(f"  [bold]Pattern:[/bold] You're a {top_period}")
+    console.print(f"  [bold]{t('pattern')}:[/bold] {t('youre_a')} {top_period}")
     console.print()
 
 
@@ -499,7 +499,7 @@ def vs_report(repo_path=".", days=7):
     show_logo()
     console.print(
         Panel.fit(
-            f"[bold cyan]Period Comparison[/bold cyan]\n"
+            f"[{th('title')}]{t('period_comparison')}[/{th('title')}]\n"
             f"[dim]Current {days} days vs previous {days} days[/dim]",
         )
     )
@@ -560,16 +560,16 @@ def vs_report(repo_path=".", days=7):
     console.print()
     if curr_count > prev_count:
         console.print(
-            f"  [green]↑ Productivity up![/green] "
-            f"{curr_count} vs {prev_count} commits"
+            f"  [{th('positive')}]↑ {t('productivity_up')}[/{th('positive')}] "
+            f"{curr_count} vs {prev_count} {t('commits_word')}"
         )
     elif curr_count < prev_count:
         console.print(
-            f"  [red]↓ Slower period.[/red] "
-            f"{curr_count} vs {prev_count} commits"
+            f"  [{th('negative')}]↓ {t('slower_period')}[/{th('negative')}] "
+            f"{curr_count} vs {prev_count} {t('commits_word')}"
         )
     else:
-        console.print("  [dim]Same pace as before.[/dim]")
+        console.print(f"  [dim]{t('same_pace')}[/dim]")
     console.print()
 
 
