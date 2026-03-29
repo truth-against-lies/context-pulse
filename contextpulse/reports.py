@@ -11,7 +11,7 @@ from git import Repo
 from rich.panel import Panel
 from rich.table import Table
 
-from .config import CATEGORY_COLORS, get_category, t, th
+from .config import CATEGORY_COLORS, get_category, t, t_raw, th, bidi
 from .ui import console, show_logo
 
 
@@ -80,33 +80,33 @@ def generate_summary(commits, categories):
     messages = " ".join(c["message"].lower() for c in commits)
     activities = []
     if "fix" in messages:
-        activities.append(t("bug_fixes"))
+        activities.append(t_raw("bug_fixes"))
     if "add" in messages:
-        activities.append(t("new_features"))
+        activities.append(t_raw("new_features"))
     if "update" in messages or "improve" in messages:
-        activities.append(t("improvements"))
+        activities.append(t_raw("improvements"))
     if "refactor" in messages:
-        activities.append(t("refactoring"))
+        activities.append(t_raw("refactoring"))
     if "test" in messages:
-        activities.append(t("testing"))
+        activities.append(t_raw("testing"))
     if "doc" in messages or "readme" in messages:
-        activities.append(t("documentation"))
+        activities.append(t_raw("documentation"))
     if not activities:
-        activities.append(t("various"))
+        activities.append(t_raw("various"))
 
     activity_str = ", ".join(activities)
-    commit_word = "commit" if total_commits == 1 else t("commits_word")
+    commit_word = "commit" if total_commits == 1 else t_raw("commits_word")
     summary = (
-        f"{t('you_made')} {total_commits} {commit_word}, "
-        f"{t('focusing_on')} {top_cat} ({top_pct}%). "
-        f"{t('main_activities')}: {activity_str}."
+        f"{t_raw('you_made')} {total_commits} {commit_word}, "
+        f"{t_raw('focusing_on')} {top_cat} ({top_pct}%). "
+        f"{t_raw('main_activities')}: {activity_str}."
     )
 
     if len(sorted_cats) > 1:
         others = [c[0] for c in sorted_cats[1:3]]
-        summary += f" {t('also_touched')}: {', '.join(others)}."
+        summary += f" {t_raw('also_touched')}: {', '.join(others)}."
 
-    return summary
+    return bidi(summary)
 
 
 def display_activity_chart(commits):
@@ -149,8 +149,8 @@ def display_hot_files(commits):
         header_style="bold red",
     )
     hot_table.add_column("#", style="dim", width=3)
-    hot_table.add_column("File", style="white")
-    hot_table.add_column("Changes", justify="right", style="red")
+    hot_table.add_column(t("file"), style="white")
+    hot_table.add_column(t("changes"), justify="right", style="red")
 
     for i, (filename, count) in enumerate(hot, 1):
         fire = "🔥 " if count >= 5 else "   "
@@ -167,13 +167,13 @@ def display_directory_breakdown(commits):
 
     console.print()
     dir_table = Table(
-        title="Changes by Directory",
+        title=t("changes_by_dir"),
         show_header=True,
         header_style="bold yellow",
     )
-    dir_table.add_column("Directory", style="bold")
-    dir_table.add_column("Commits", justify="right", style="cyan")
-    dir_table.add_column("Files", justify="right", style="green")
+    dir_table.add_column(t("directory"), style="bold")
+    dir_table.add_column(t("commits_word"), justify="right", style="cyan")
+    dir_table.add_column(t("files"), justify="right", style="green")
 
     sorted_dirs = sorted(
         dirs.items(),
@@ -244,9 +244,9 @@ def display_report(commits, period_label):
         show_header=True,
         header_style="bold blue",
     )
-    cat_table.add_column("Category", style="bold")
+    cat_table.add_column(t("category"), style="bold")
     cat_table.add_column(t("commits_word"), justify="right")
-    cat_table.add_column("Files", justify="right")
+    cat_table.add_column(t("files"), justify="right")
 
     sorted_cats = sorted(
         categories.items(),

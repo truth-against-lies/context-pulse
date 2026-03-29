@@ -111,6 +111,30 @@ TRANSLATIONS = {
         "evening_hacker": "evening hacker (18-22)",
         "night_owl": "night owl (22-06)",
         "youre_a": "You're a",
+        "file": "File",
+        "changes": "Changes",
+        "directory": "Directory",
+        "category": "Category",
+        "author": "Author",
+        "active": "Active",
+        "metric": "Metric",
+        "commit_streak": "Commit Streak",
+        "last_28_days": "Last 28 days",
+        "legend": "■ = committed  □ = no commits",
+        "commits_per_week": "Commits per Week",
+        "ownership_by_dir": "Ownership by Directory",
+        "top_owner": "Top Owner",
+        "authors": "Authors",
+        "high_ownership": "High Ownership Files (90%+ by one person)",
+        "owner": "Owner",
+        "lines": "Lines",
+        "bus_factor": "Bus Factor",
+        "yesterday": "Yesterday",
+        "today_so_far": "Today so far",
+        "no_commits_yet": "no commits yet",
+        "no_commits_yesterday": "no commits",
+        "copy_paste_slack": "Copy-paste for Slack",
+        "analyzing_ownership": "Analyzing ownership (this may take a moment)...",
     },
     "he": {
         "starting": "מתחיל...",
@@ -175,6 +199,30 @@ TRANSLATIONS = {
         "evening_hacker": "האקר ערב (18-22)",
         "night_owl": "ינשוף לילה (22-06)",
         "youre_a": "אתה",
+        "file": "קובץ",
+        "changes": "שינויים",
+        "directory": "תיקייה",
+        "category": "קטגוריה",
+        "author": "מחבר",
+        "active": "פעיל",
+        "metric": "מדד",
+        "commit_streak": "רצף קומיטים",
+        "last_28_days": "28 ימים אחרונים",
+        "legend": "■ = בוצע קומיט  □ = ללא קומיט",
+        "commits_per_week": "קומיטים לפי שבוע",
+        "ownership_by_dir": "בעלות לפי תיקייה",
+        "top_owner": "בעלים מוביל",
+        "authors": "מחברים",
+        "high_ownership": "קבצים עם בעלות גבוהה (90%+ ע״י אדם אחד)",
+        "owner": "בעלים",
+        "lines": "שורות",
+        "bus_factor": "מקדם סיכון",
+        "yesterday": "אתמול",
+        "today_so_far": "היום עד כה",
+        "no_commits_yet": "עוד אין קומיטים",
+        "no_commits_yesterday": "ללא קומיטים",
+        "copy_paste_slack": "העתק-הדבק לסלאק:",
+        "analyzing_ownership": "מנתח בעלות (זה עשוי לקחת רגע)...",
     },
 }
 
@@ -309,8 +357,27 @@ FILE_TYPE_TIPS = {
 }
 
 
+def bidi(text):
+    """Reorder Hebrew/RTL text for correct display in LTR terminals."""
+    if current_lang != "he":
+        return text
+    try:
+        from bidi.algorithm import get_display
+        return get_display(text)
+    except ImportError:
+        return text
+
+
 def t(key):
-    """Returns translated text based on the active language."""
+    """Returns translated text with bidi for terminal display."""
+    text = TRANSLATIONS.get(current_lang, TRANSLATIONS["en"]).get(
+        key, TRANSLATIONS["en"].get(key, key)
+    )
+    return bidi(text)
+
+
+def t_raw(key):
+    """Returns translated text WITHOUT bidi — for building composite strings."""
     return TRANSLATIONS.get(current_lang, TRANSLATIONS["en"]).get(
         key, TRANSLATIONS["en"].get(key, key)
     )
