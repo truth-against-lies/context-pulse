@@ -1836,6 +1836,8 @@ def show_help():
     cmds.add_row("pulse vs", "Compare current vs previous period")
     cmds.add_row("pulse streak", "Commit streak + calendar")
     cmds.add_row("pulse trends", "Weekly trends over time")
+    cmds.add_row("pulse diff", "Show exactly what changed recently")
+    cmds.add_row("pulse blame", "Who owns what + Bus Factor")
     cmds.add_row("pulse learn", "Generate code guide (HTML)")
     cmds.add_row("pulse learn --beginner", "Code guide with explanations")
     cmds.add_row("pulse log", "Pretty git log with icons")
@@ -2159,6 +2161,259 @@ FILE_TYPE_TIPS = {
     ".sql": "SQL — database query language (get/insert/update data)",
     ".txt": "Plain text file",
 }
+
+
+def diff_report(repo_path=".", count=5):
+    """
+    pulse diff: מראה בדיוק מה השתנה בקומיטים האחרונים.
+    כמו git diff אבל עם צבעים, סיכום, וסינון של רעש.
+
+    count = כמה קומיטים אחרונים להציג (ברירת מחדל: 5)
+    """
+    repo = Repo(repo_path)
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[{th('title')}]Recent Changes[/{th('title')}]",
+            subtitle=f"last {count} commits",
+            border_style=th("border"),
+        )
+    )
+
+    for i, commit in enumerate(repo.iter_commits(max_count=count)):
+        commit_dt = datetime.fromtimestamp(commit.committed_date)
+        date_str = commit_dt.strftime("%Y-%m-%d %H:%M")
+        msg = commit.message.strip().split("\n")[0]
+        hash_short = commit.hexsha[:7]
+        stats = commit.stats
+
+        # כותרת הקומיט
+        console.print()
+        console.print(
+            f"  [{th('accent')}]{hash_short}[/{th('accent')}] "
+            f"[dim]{date_str}[/dim] — {msg}"
+        )
+
+        # פירוט כל קובץ שהשתנה
+        for filepath, file_stats in stats.files.items():
+            ins = file_stats.get("insertions", 0)
+            dels = file_stats.get("deletions", 0)
+
+            # בר ויזואלי של שינויים
+            total = ins + dels
+            if total > 0:
+                bar_len = min(total, 40)
+                ins_len = round(ins / total * bar_len)
+                del_len = bar_len - ins_len
+                bar = (
+                    f"[green]{'+'* ins_len}[/green]"
+                    f"[red]{'-' * del_len}[/red]"
+                )
+            else:
+                bar = ""
+
+            # צבע לפי סוג שינוי
+            if dels == 0 and ins > 0:
+                icon = "[green]+ new[/green]"
+            elif ins == 0 and dels > 0:
+                icon = "[red]- del[/red]"
+            else:
+                icon = "[yellow]~ mod[/yellow]"
+
+            cat = get_category(filepath)
+            color = CATEGORY_COLORS.get(cat, "white")
+
+            console.print(
+                f"    {icon} [{color}]{filepath}[/{color}]  "
+                f"{bar}  "
+                f"[green]+{ins}[/green] [red]-{dels}[/red]"
+            )
+
+        # סיכום הקומיט
+        total_ins = stats.total.get("insertions", 0)
+        total_dels = stats.total.get("deletions", 0)
+        console.print(
+            f"    [dim]── {len(stats.files)} files, "
+            f"+{total_ins}/-{total_dels} lines[/dim]"
+        )
+
+        if i < count - 1:
+            console.print("    [dim]│[/dim]")
+
+    console.print()
+
+
+def blame_report(repo_path=".", top_n=10):
+    """
+    pulse blame: מראה מי אחראי על כל חלק בפרויקט.
+    מזהה "בעלות" על תיקיות וקבצים לפי מי כתב הכי הרבה שורות.
+
+    Bus Factor: אם אדם אחד "בבעלות" על קובץ — זה סיכון.
+    """
+    repo = Repo(repo_path)
+    project_name = Path(repo_path).resolve().name
+
+    show_logo()
+    console.print(
+        Panel.fit(
+            f"[{th('title')}]Code Ownership — {project_name}[/{th('title')}]",
+            border_style=th("border"),
+        )
+    )
+
+    # אוספים את כל הקבצים שגיט עוקב אחריהם
+    all_files = repo.git.ls_files().split("\n")
+    all_files = [f for f in all_files if f]
+
+    # סיומות שאפשר לעשות עליהן blame (לא בינאריים)
+    text_extensions = {
+        ".py", ".js", ".ts", ".html", ".css", ".jsx", ".tsx",
+        ".rb", ".go", ".rs", ".java", ".sh", ".sql", ".md",
+        ".txt", ".json", ".yml", ".yaml", ".toml",
+    }
+
+    # אוספים בעלות לכל תיקייה
+    dir_owners = defaultdict(lambda: Counter())
+    file_owners = defaultdict(lambda: Counter())
+    bus_factor_files = []  # קבצים עם מחבר יחיד
+
+    console.print()
+    console.print("[dim]Analyzing ownership (this may take a moment)...[/dim]")
+
+    files_analyzed = 0
+    for filepath in all_files:
+        suffix = Path(filepath).suffix.lower()
+        if suffix not in text_extensions:
+            continue
+
+        try:
+            # git blame מחזיר מי כתב כל שורה בקובץ
+            blame_output = repo.git.blame("--line-porcelain", filepath)
+        except Exception:
+            continue
+
+        files_analyzed += 1
+        authors_in_file = Counter()
+
+        for line in blame_output.split("\n"):
+            if line.startswith("author "):
+                author = line[7:]
+                authors_in_file[author] += 1
+
+                # תיקייה ראשית
+                parts = Path(filepath).parts
+                top_dir = parts[0] if len(parts) > 1 else "(root)"
+                dir_owners[top_dir][author] += 1
+
+        if authors_in_file:
+            # מי הבעלים העיקרי של הקובץ
+            top_author = authors_in_file.most_common(1)[0]
+            total_lines = sum(authors_in_file.values())
+            ownership_pct = round(top_author[1] / total_lines * 100)
+            file_owners[filepath] = {
+                "author": top_author[0],
+                "pct": ownership_pct,
+                "lines": total_lines,
+                "unique_authors": len(authors_in_file),
+            }
+
+            # Bus Factor: קובץ עם מחבר יחיד
+            if len(authors_in_file) == 1:
+                bus_factor_files.append(filepath)
+
+    # === טבלת בעלות לפי תיקיות ===
+    console.print()
+    dir_table = Table(
+        title="Ownership by Directory",
+        show_header=True,
+        header_style=th("header"),
+    )
+    dir_table.add_column("Directory", style="bold")
+    dir_table.add_column("Top Owner", style=th("accent"))
+    dir_table.add_column("%", justify="right", style=th("positive"))
+    dir_table.add_column("Authors", justify="right")
+
+    for dir_name in sorted(dir_owners.keys()):
+        authors = dir_owners[dir_name]
+        total = sum(authors.values())
+        top = authors.most_common(1)[0]
+        pct = round(top[1] / total * 100)
+        num_authors = len(authors)
+
+        pct_color = th("positive") if pct < 80 else (
+            "yellow" if pct < 95 else th("negative")
+        )
+        dir_table.add_row(
+            dir_name,
+            top[0],
+            f"[{pct_color}]{pct}%[/{pct_color}]",
+            str(num_authors),
+        )
+
+    console.print(dir_table)
+
+    # === Top files by single ownership ===
+    single_owner = sorted(
+        [
+            (f, d) for f, d in file_owners.items()
+            if d["pct"] >= 90 and d["lines"] >= 10
+        ],
+        key=lambda x: x[1]["lines"],
+        reverse=True,
+    )[:top_n]
+
+    if single_owner:
+        console.print()
+        file_table = Table(
+            title="High Ownership Files (90%+ by one person)",
+            show_header=True,
+            header_style="bold yellow",
+        )
+        file_table.add_column("File", style="white")
+        file_table.add_column("Owner", style=th("accent"))
+        file_table.add_column("%", justify="right")
+        file_table.add_column("Lines", justify="right", style="dim")
+
+        for filepath, data in single_owner:
+            file_table.add_row(
+                filepath,
+                data["author"],
+                f"{data['pct']}%",
+                str(data["lines"]),
+            )
+
+        console.print(file_table)
+
+    # === Bus Factor ===
+    all_authors = set()
+    for authors in dir_owners.values():
+        all_authors.update(authors.keys())
+
+    bus_factor = len(all_authors)
+
+    console.print()
+    if bus_factor <= 1:
+        bf_color = th("negative")
+        bf_msg = "CRITICAL — only 1 contributor knows the code"
+    elif bus_factor <= 2:
+        bf_color = "yellow"
+        bf_msg = "LOW — consider getting more contributors"
+    else:
+        bf_color = th("positive")
+        bf_msg = "Healthy — knowledge is distributed"
+
+    console.print(
+        Panel(
+            f"[{bf_color}]Bus Factor: {bus_factor}[/{bf_color}]\n"
+            f"[dim]{bf_msg}[/dim]\n\n"
+            f"Files analyzed: {files_analyzed}\n"
+            f"Single-author files: {len(bus_factor_files)}",
+            title="Bus Factor",
+            border_style=bf_color,
+        )
+    )
+    console.print()
 
 
 def learn_report(repo_path=".", output_path="learn.html", beginner=False):
@@ -2490,6 +2745,8 @@ SHORTCUTS = {
     "log": None,         # פקודה מיוחדת — git log יפה
     "trends": None,      # פקודה מיוחדת — מגמות לאורך זמן
     "learn": None,       # פקודה מיוחדת — מדריך קוד HTML
+    "diff": None,        # פקודה מיוחדת — מה בדיוק השתנה
+    "blame": None,       # פקודה מיוחדת — מי אחראי על מה
     "help": None,        # פקודה מיוחדת — מדריך
     # === קיצורים בעברית ===
     "היום": ["--today"],
@@ -2503,6 +2760,8 @@ SHORTCUTS = {
     "סריקה": None,       # = scan
     "השוואה": None,      # = vs
     "לוג": None,         # = log
+    "שינויים": None,     # = diff
+    "בעלות": None,       # = blame
     "עזרה": None,        # = help
 }
 
@@ -2523,7 +2782,8 @@ def expand_shortcuts(argv):
     hebrew_to_english = {
         "צוות": "team", "שעות": "hours", "לימוד": "learn",
         "מגמות": "trends", "רצף": "streak", "סריקה": "scan",
-        "השוואה": "vs", "לוג": "log", "עזרה": "help",
+        "השוואה": "vs", "לוג": "log", "שינויים": "diff",
+        "בעלות": "blame", "עזרה": "help",
     }
     if first in hebrew_to_english:
         first = hebrew_to_english[first]
@@ -2566,6 +2826,11 @@ def expand_shortcuts(argv):
             "all repos": "multi", "כל הריפו": "multi",
             "init": "init", "config": "init", "הגדרות": "init",
             "setup": "init",
+            "diff": "diff", "שינויים": "diff", "changes": "diff",
+            "מה השתנה": "diff", "what changed": "diff",
+            "blame": "blame", "בעלות": "blame", "ownership": "blame",
+            "מי כתב": "blame", "who wrote": "blame", "who owns": "blame",
+            "bus factor": "blame", "אחראי": "blame",
         }
 
         # === משפטים / כוונות (intent) ===
@@ -2759,6 +3024,22 @@ def expand_shortcuts(argv):
         pretty_log(repo, count)
         return None
 
+    if first == "diff":
+        count = 5
+        repo = "."
+        if len(argv) > 1 and argv[1].isdigit():
+            count = int(argv[1])
+            repo = argv[2] if len(argv) > 2 else "."
+        elif len(argv) > 1:
+            repo = argv[1]
+        diff_report(repo, count)
+        return None
+
+    if first == "blame":
+        repo = argv[1] if len(argv) > 1 else "."
+        blame_report(repo)
+        return None
+
     if first == "learn":
         beginner = "--beginner" in argv or "-b" in argv
         # מסננים את הדגל מהארגומנטים
@@ -2876,7 +3157,7 @@ def main():
     parser.add_argument(
         "--version", "-v",
         action="version",
-        version="ContextPulse 0.9.1",
+        version="ContextPulse 1.0.0",
     )
     parser.add_argument(
         "--html",
