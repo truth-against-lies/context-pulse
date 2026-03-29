@@ -121,7 +121,7 @@ def main():
     parser.add_argument(
         "--version", "-v",
         action="version",
-        version="ContextPulse 1.3.0",
+        version="ContextPulse 1.3.1",
     )
     parser.add_argument(
         "--html",
@@ -141,14 +141,20 @@ def main():
         type=str,
         default="default",
         choices=list(THEMES.keys()),
-        help="Color theme: default, ocean, forest, sunset, minimal",
+        help="Color theme: default, ocean, forest, sunset, minimal, colorblind, high-contrast",
+    )
+    parser.add_argument(
+        "--accessible",
+        action="store_true",
+        help="Accessible mode: no colors, no ASCII art (screen reader friendly)",
     )
 
     args = parser.parse_args(expanded)
 
-    # === Set language and theme ===
+    # === Set language, theme, accessibility ===
     config.current_lang = args.lang
     config.current_theme = THEMES.get(args.theme, THEMES["default"])
+    config.accessible_mode = args.accessible
 
     # === Interactive mode ===
     if args.interactive:

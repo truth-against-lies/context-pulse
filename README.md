@@ -87,10 +87,17 @@ pulse help               # see all commands
 | `pulse trends` | Weekly trends with arrows |
 | `pulse diff` | Pretty diff — what exactly changed |
 | `pulse blame` | Code ownership + Bus Factor |
+| `pulse badges` | Your achievements (16 badges) |
+| `pulse leaderboard` | Contributor ranking |
 | `pulse log` | Pretty git log with smart icons |
 | `pulse learn` | Generate code guide (HTML) |
 | `pulse learn --beginner` | Code guide with tooltips for beginners |
 | `pulse multi ~/code` | Scan all repos in a directory |
+| `pulse changelog` | Auto-generate changelog |
+| `pulse standup` | Standup report (paste to Slack) |
+| `pulse id` | Repo identity card |
+| `pulse quality` | Commit message quality score |
+| `pulse age` | Code age map (stale files) |
 
 ### Options
 | Flag | Short | Description |
@@ -105,10 +112,17 @@ pulse help               # see all commands
 | `--theme NAME` | | Color theme (ocean/forest/sunset/minimal) |
 | `--version` | `-v` | Show version |
 
+### Options
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--accessible` | | No colors/art (screen reader friendly) |
+
 ### Setup
 | Command | Description |
 |---------|-------------|
 | `pulse init` | Create `.pulserc` config for project defaults |
+| `pulse hook` | Install post-commit mini report |
+| `pulse watch` | Live dashboard (auto-refresh) |
 | `pulse i` | Interactive mode (guided menu) |
 | `pulse help` | Full command reference |
 

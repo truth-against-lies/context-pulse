@@ -222,9 +222,35 @@ THEMES = {
         "negative": "red",
         "neutral": "dim",
     },
+    # Colorblind-safe themes — use blue/orange instead of red/green
+    "colorblind": {
+        "title": "bold bright_blue",
+        "subtitle": "dim",
+        "header": "bold bright_blue",
+        "border": "bright_blue",
+        "summary_border": "bright_blue",
+        "accent": "bright_blue",
+        "positive": "bright_blue",
+        "negative": "bright_yellow",
+        "neutral": "dim",
+    },
+    "high-contrast": {
+        "title": "bold bright_white",
+        "subtitle": "white",
+        "header": "bold bright_white underline",
+        "border": "bright_white",
+        "summary_border": "bright_white",
+        "accent": "bright_white",
+        "positive": "bold bright_white",
+        "negative": "bold bright_yellow",
+        "neutral": "white",
+    },
 }
 
 current_theme = THEMES["default"]
+
+# Accessible mode — strips colors/art for screen readers
+accessible_mode = False
 
 
 # === Keyword tips for beginners ===

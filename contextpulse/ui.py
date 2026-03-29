@@ -5,6 +5,7 @@ ContextPulse - Console setup, logo, and help display.
 from rich.console import Console
 from rich.table import Table
 
+from . import config
 from .config import th
 
 console = Console()
@@ -20,8 +21,11 @@ LOGO = """[bold cyan]
 
 
 def show_logo():
-    """Displays the ContextPulse logo."""
-    console.print(LOGO)
+    """Displays the ContextPulse logo (skipped in accessible mode)."""
+    if config.accessible_mode:
+        console.print("ContextPulse")
+    else:
+        console.print(LOGO)
 
 
 def show_help():
