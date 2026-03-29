@@ -2531,47 +2531,73 @@ def expand_shortcuts(argv):
 
     # === Smart Mode — מצב חכם ===
     # אם המילה הראשונה לא מזוהה כפקודה, סורקים את כל המילים
-    # ומנסים להבין מה המשתמש רוצה.
-    # למשל: "תפתח לי פולס יומי לימוד מתחיל" → pulse learn --beginner
+    # ומנסים להבין מה המשתמש רוצה — גם בלי מילות מפתח מדויקות.
     all_commands = set(SHORTCUTS.keys()) | set(hebrew_to_english.keys())
     if first not in all_commands and not first.startswith("-") and not first.startswith("/"):
-        # אולי זו משפט חופשי — נסרוק את כל המילים
         all_words = " ".join(argv).lower()
 
-        # מילות מפתח → פקודה
+        # === מילות מפתח ישירות ===
         SMART_KEYWORDS = {
-            # פקודות
             "learn": "learn", "לימוד": "learn", "code guide": "learn",
-            "ללמוד": "learn", "קוד": "learn",
+            "ללמוד": "learn", "קוד": "learn", "להבין": "learn",
+            "guide": "learn", "מדריך": "learn", "tutorial": "learn",
             "team": "team", "צוות": "team", "contributors": "team",
-            "תורמים": "team",
+            "תורמים": "team", "מי עבד": "team", "who worked": "team",
+            "who contributed": "team", "מי תרם": "team",
             "hours": "hours", "שעות": "hours", "patterns": "hours",
-            "דפוסים": "hours", "זמנים": "hours",
+            "דפוסים": "hours", "זמנים": "hours", "מתי עבדתי": "hours",
+            "when did i work": "hours", "work time": "hours",
+            "productivity": "hours",
             "trends": "trends", "מגמות": "trends", "מגמה": "trends",
-            "streak": "streak", "רצף": "streak",
+            "progress": "trends", "התקדמות": "trends",
+            "השתפרתי": "trends", "improving": "trends",
+            "streak": "streak", "רצף": "streak", "רציפות": "streak",
+            "consecutive": "streak",
             "scan": "scan", "סריקה": "scan", "בריאות": "scan",
             "health": "scan", "quality": "scan", "איכות": "scan",
+            "בדיקה": "scan", "check": "scan",
             "vs": "vs", "השוואה": "vs", "compare": "vs", "להשוות": "vs",
-            "log": "log", "לוג": "log", "history": "log", "היסטוריה": "log",
-            "help": "help", "עזרה": "help",
+            "versus": "vs", "לעומת": "vs", "difference": "vs",
+            "log": "log", "לוג": "log", "history": "log",
+            "היסטוריה": "log", "commits": "log",
+            "help": "help", "עזרה": "help", "איך": "help",
+            "how": "help", "commands": "help", "פקודות": "help",
             "multi": "multi", "מולטי": "multi", "ריפו": "multi",
-            "init": "init",
+            "all repos": "multi", "כל הריפו": "multi",
+            "init": "init", "config": "init", "הגדרות": "init",
+            "setup": "init",
+        }
+
+        # === משפטים / כוונות (intent) ===
+        # זיהוי כוונה גם בלי מילת מפתח מדויקת
+        SMART_INTENTS = {
+            # דוח רגיל
+            "דוח": None, "report": None, "סיכום": None,
+            "summary": None, "מה עשיתי": None, "what did i do": None,
+            "מה קורה": None, "status": None, "סטטוס": None,
+            "מה נעשה": None, "what happened": None,
+            "מה חדש": None, "what's new": None,
+            "תראה לי": None, "show me": None, "הראה": None,
+            "אני רוצה לראות": None, "i want to see": None,
+            "תפתח": None, "open": None, "run": None, "תריץ": None,
         }
 
         # זמנים
         SMART_TIME = {
             "today": "--today", "היום": "--today", "יומי": "--today",
-            "daily": "--today",
+            "daily": "--today", "של היום": "--today",
             "week": "--week", "שבוע": "--week", "שבועי": "--week",
-            "weekly": "--week",
+            "weekly": "--week", "השבוע": "--week", "this week": "--week",
             "month": "--month", "חודש": "--month", "חודשי": "--month",
-            "monthly": "--month",
+            "monthly": "--month", "החודש": "--month", "this month": "--month",
         }
 
         # דגלים
         SMART_FLAGS = {
             "beginner": "--beginner", "מתחיל": "--beginner",
             "מתחילים": "--beginner", "הסברים": "--beginner",
+            "explain": "--beginner", "simple": "--beginner",
+            "פשוט": "--beginner",
             "json": "--json",
             "hebrew": "--lang he", "עברית": "--lang he",
         }
@@ -2579,28 +2605,38 @@ def expand_shortcuts(argv):
         detected_command = None
         detected_time = None
         detected_flags = []
+        has_intent = False
 
+        # חיפוש פקודה ספציפית
         for keyword, cmd in SMART_KEYWORDS.items():
             if keyword in all_words:
                 detected_command = cmd
                 break
 
+        # חיפוש כוונה כללית (דוח רגיל)
+        if not detected_command:
+            for intent_word in SMART_INTENTS:
+                if intent_word in all_words:
+                    has_intent = True
+                    break
+
+        # חיפוש זמן
         for keyword, flag in SMART_TIME.items():
             if keyword in all_words:
                 detected_time = flag
                 break
 
+        # חיפוש דגלים
         for keyword, flag in SMART_FLAGS.items():
             if keyword in all_words:
                 detected_flags.append(flag)
 
+        # === בניית הפקודה ===
         if detected_command:
-            # בונים את הפקודה החדשה
             new_argv = [detected_command]
             if detected_flags:
                 for f in detected_flags:
                     new_argv.extend(f.split())
-            # פקודות מיוחדות מקבלות מספר ימים, לא דגל
             if detected_time and detected_command in (
                 "team", "hours", "vs", "trends"
             ):
@@ -2619,6 +2655,44 @@ def expand_shortcuts(argv):
             )
             argv = new_argv
             first = argv[0]
+
+        elif has_intent and detected_time:
+            # יש כוונה + זמן אבל בלי פקודה ספציפית → דוח רגיל
+            new_argv = [detected_time]
+            if detected_flags:
+                for f in detected_flags:
+                    new_argv.extend(f.split())
+            console.print(
+                f"  [dim]→ understood: pulse {' '.join(new_argv)}[/dim]\n"
+            )
+            argv = new_argv
+            first = argv[0]
+
+        elif has_intent and not detected_time:
+            # יש כוונה בלי זמן → דוח שבועי (ברירת מחדל)
+            new_argv = []
+            if detected_flags:
+                for f in detected_flags:
+                    new_argv.extend(f.split())
+            console.print(
+                f"  [dim]→ understood: pulse {' '.join(new_argv) if new_argv else '(weekly report)'}[/dim]\n"
+            )
+            argv = new_argv if new_argv else []
+            first = argv[0] if argv else ""
+
+        else:
+            # לא הצלחנו להבין → מציעים אפשרויות
+            console.print(
+                f"  [yellow]I didn't understand '{' '.join(argv)}'.[/yellow]\n"
+                f"  Did you mean one of these?\n"
+                f"    [cyan]pulse today[/cyan]     — daily report\n"
+                f"    [cyan]pulse scan[/cyan]      — project health\n"
+                f"    [cyan]pulse team[/cyan]      — contributors\n"
+                f"    [cyan]pulse hours[/cyan]     — work patterns\n"
+                f"    [cyan]pulse learn[/cyan]     — code guide\n"
+                f"    [cyan]pulse help[/cyan]      — all commands\n"
+            )
+            return None
 
     # פקודות מיוחדות — כל אחת מפעילה פונקציה ייעודית
     if first == "scan":
@@ -2802,7 +2876,7 @@ def main():
     parser.add_argument(
         "--version", "-v",
         action="version",
-        version="ContextPulse 0.9.0",
+        version="ContextPulse 0.9.1",
     )
     parser.add_argument(
         "--html",
