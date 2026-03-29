@@ -56,7 +56,12 @@ pulse team               # who contributed what
 pulse hours              # your work patterns
 pulse vs                 # this week vs last week
 pulse streak             # commit streak + calendar
+pulse trends             # weekly trends over time
+pulse diff               # what exactly changed
+pulse blame              # who owns what + bus factor
 pulse log                # pretty git log with icons
+pulse learn              # code guide (HTML)
+pulse learn --beginner   # code guide with explanations
 pulse help               # see all commands
 ```
 
@@ -79,7 +84,12 @@ pulse help               # see all commands
 | `pulse hours` | Work patterns by hour and day |
 | `pulse vs` | Compare current period to previous |
 | `pulse streak` | Commit streak tracker + 28-day calendar |
+| `pulse trends` | Weekly trends with arrows |
+| `pulse diff` | Pretty diff — what exactly changed |
+| `pulse blame` | Code ownership + Bus Factor |
 | `pulse log` | Pretty git log with smart icons |
+| `pulse learn` | Generate code guide (HTML) |
+| `pulse learn --beginner` | Code guide with tooltips for beginners |
 | `pulse multi ~/code` | Scan all repos in a directory |
 
 ### Options
@@ -101,6 +111,16 @@ pulse help               # see all commands
 | `pulse init` | Create `.pulserc` config for project defaults |
 | `pulse i` | Interactive mode (guided menu) |
 | `pulse help` | Full command reference |
+
+### Smart Mode (Natural Language)
+Type freely in **Hebrew or English** — ContextPulse understands intent:
+```bash
+pulse מה עשיתי השבוע          # → pulse --week
+pulse מי עבד השבוע             # → pulse team 7
+pulse האם השתפרתי החודש        # → pulse trends 30
+pulse show me the team weekly  # → pulse team 7
+pulse תפתח לי לימוד מתחיל     # → pulse learn --beginner
+```
 
 ## Example Output
 
