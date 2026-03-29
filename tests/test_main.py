@@ -525,3 +525,137 @@ def test_group_by_category_mixed():
     ])
     categories = group_by_category(commits)
     assert len(categories) == 5
+
+
+# ================================================================
+# config.py tests — Hebrew translation mode
+# ================================================================
+
+def test_hebrew_translation():
+    from contextpulse import config
+    old_lang = config.current_lang
+    config.current_lang = "he"
+    from contextpulse.config import t
+    assert t("summary") == "סיכום"
+    assert t("commits") == "קומיטים"
+    assert t("total") == "סה״כ"
+    config.current_lang = old_lang
+
+
+def test_hebrew_peak_hour():
+    from contextpulse import config
+    old_lang = config.current_lang
+    config.current_lang = "he"
+    from contextpulse.config import t
+    assert t("peak_hour") == "שעת שיא"
+    assert t("peak_day") == "יום שיא"
+    config.current_lang = old_lang
+
+
+def test_theme_switching():
+    from contextpulse import config
+    from contextpulse.config import th, THEMES
+    old_theme = config.current_theme
+    config.current_theme = THEMES["ocean"]
+    assert th("title") == "bold blue"
+    config.current_theme = THEMES["forest"]
+    assert th("title") == "bold green"
+    config.current_theme = old_theme
+
+
+# ================================================================
+# export.py tests — export_json
+# ================================================================
+
+def test_export_json_structure():
+    import json
+    from io import StringIO
+    from contextpulse.export import export_json
+    commits = make_fake_commits([["a.py", "b.js"]], messages=["Add feature"])
+    # Capture stdout
+    import sys
+    old_stdout = sys.stdout
+    sys.stdout = StringIO()
+    export_json(commits, "test period")
+    output = sys.stdout.getvalue()
+    sys.stdout = old_stdout
+    data = json.loads(output)
+    assert data["period"] == "test period"
+    assert data["total_commits"] == 1
+    assert "summary" in data
+    assert "commits" in data
+
+
+# ================================================================
+# export.py tests — export_markdown
+# ================================================================
+
+def test_export_markdown_creates_file(tmp_path):
+    from contextpulse.export import export_markdown
+    commits = make_fake_commits(
+        [["a.py"]], messages=["Fix important bug"]
+    )
+    output_file = tmp_path / "test_report.md"
+    export_markdown(commits, "last 7 days", str(output_file))
+    assert output_file.exists()
+    content = output_file.read_text()
+    assert "# ContextPulse" in content
+    assert "Fix important bug" in content
+    assert "last 7 days" in content
+
+
+def test_export_markdown_has_lines_summary(tmp_path):
+    from contextpulse.export import export_markdown
+    commits = make_fake_commits([["a.py"]])
+    output_file = tmp_path / "test.md"
+    export_markdown(commits, "test", str(output_file))
+    content = output_file.read_text()
+    assert "+10" in content  # insertions from fake commits
+
+
+# ================================================================
+# smart.py tests — natural language
+# ================================================================
+
+def test_smart_mode_hebrew_intent():
+    """Test that Hebrew natural language is understood."""
+    result = expand_shortcuts(["מה", "עשיתי", "השבוע"])
+    assert result == ["--week"] or result is None  # either parsed or dispatched
+
+
+def test_smart_mode_unknown_returns_none():
+    """Unknown input should return None (shows suggestions)."""
+    result = expand_shortcuts(["xyzzy123"])
+    assert result is None
+
+
+def test_smart_mode_english_intent():
+    result = expand_shortcuts(["show", "me", "the", "team"])
+    assert result is None  # dispatched directly
+
+
+# ================================================================
+# config.py tests — _cat_to_hex edge cases
+# ================================================================
+
+def test_cat_to_hex_all_major():
+    """Every major category should have a hex color."""
+    major = ["HTML", "Style", "JavaScript", "Python", "Config", "Docs"]
+    for cat in major:
+        result = _cat_to_hex(cat)
+        assert result.startswith("#"), f"{cat} has no hex color"
+
+
+# ================================================================
+# reports.py tests — generate_summary with many commits
+# ================================================================
+
+def test_summary_many_commits():
+    commits = make_fake_commits(
+        [["a.py"], ["b.py"], ["c.py"], ["d.py"], ["e.py"]],
+        messages=["Add x", "Fix y", "Update z", "Add w", "Refactor q"]
+    )
+    categories = group_by_category(commits)
+    summary = generate_summary(commits, categories)
+    assert "5 commits" in summary
+    assert "Python" in summary

@@ -38,7 +38,7 @@ from . import __version__
 from .ui import console, show_logo
 from .git_utils import get_commits, get_compare_commits
 from .reports import display_report
-from .export import export_json, export_markdown, export_html
+from .export import export_json, export_markdown, export_html, send_webhook
 from .smart import expand_shortcuts, interactive_mode
 
 
@@ -149,6 +149,12 @@ def main():
         action="store_true",
         help="Accessible mode: no colors, no ASCII art (screen reader friendly)",
     )
+    parser.add_argument(
+        "--webhook",
+        type=str,
+        default=None,
+        help="Send report to Slack/Discord webhook URL",
+    )
 
     args = parser.parse_args(expanded)
 
@@ -232,6 +238,8 @@ def main():
             export_markdown(commits, period_label, args.export)
         if args.html:
             export_html(commits, period_label, args.html)
+        if args.webhook:
+            send_webhook(commits, period_label, args.webhook)
 
 
 if __name__ == "__main__":

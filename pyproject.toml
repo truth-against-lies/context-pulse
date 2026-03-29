@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "contextpulse"
-version = "1.3.3"
+version = "1.4.0"
 description = "Turn your Git history into a human story"
 readme = "README.md"
 license = "MIT"

@@ -86,6 +86,7 @@ def show_help():
     opts.add_row("--json, -j", "Output as JSON")
     opts.add_row("--lang he, -l he", "Hebrew output")
     opts.add_row("--theme NAME", "Theme: ocean/forest/sunset/minimal/colorblind/high-contrast")
+    opts.add_row("--webhook URL", "Send report to Slack/Discord webhook")
     opts.add_row("--accessible", "No colors/art (screen reader friendly)")
     opts.add_row("--version, -v", "Show version")
     console.print(opts)

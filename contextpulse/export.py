@@ -355,3 +355,70 @@ def export_html(commits, period_label, output_path):
 
     Path(output_path).write_text(html, encoding="utf-8")
     console.print(f"[green]HTML report saved to:[/green] {output_path}")
+
+
+def send_webhook(commits, period_label, webhook_url):
+    """
+    Sends a formatted report to a Slack or Discord webhook URL.
+    Slack and Discord both accept JSON with a "content" or "text" field.
+    """
+    import urllib.request
+    import urllib.error
+
+    categories = group_by_category(commits)
+    summary_text = generate_summary(commits, categories)
+    total_files = sum(c["files_changed"] for c in commits)
+    total_ins = sum(c.get("insertions", 0) for c in commits)
+    total_dels = sum(c.get("deletions", 0) for c in commits)
+    authors = set(c["author"] for c in commits)
+    hot = get_hot_files(commits, top_n=3)
+
+    # Build message
+    msg_lines = [
+        f"**ContextPulse Report** — {period_label}",
+        "",
+        f"> {summary_text}",
+        "",
+        f"**Stats:** {len(commits)} commits by {len(authors)} author(s)",
+        f"**Files:** {total_files} changed | +{total_ins} / -{total_dels} lines",
+    ]
+
+    if hot:
+        msg_lines.append("")
+        msg_lines.append("**Hot Files:**")
+        for filename, count in hot:
+            msg_lines.append(f"• `{filename}` ({count} changes)")
+
+    # Recent commits (max 5)
+    msg_lines.append("")
+    msg_lines.append("**Recent:**")
+    for c in commits[:5]:
+        msg_lines.append(f"• `{c['hash']}` {c['message']}")
+
+    message = "\n".join(msg_lines)
+
+    # Detect Slack vs Discord
+    # Slack uses "text", Discord uses "content"
+    if "hooks.slack.com" in webhook_url:
+        payload = {"text": message}
+    else:
+        # Discord (and generic webhooks)
+        payload = {"content": message}
+
+    data = json.dumps(payload).encode("utf-8")
+
+    req = urllib.request.Request(
+        webhook_url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+    )
+
+    try:
+        urllib.request.urlopen(req)
+        console.print(f"[green]Report sent to webhook![/green]")
+    except urllib.error.HTTPError as e:
+        console.print(f"[red]Webhook error:[/red] {e.code} {e.reason}")
+    except urllib.error.URLError as e:
+        console.print(f"[red]Connection error:[/red] {e.reason}")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")

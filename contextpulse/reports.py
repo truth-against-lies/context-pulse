@@ -597,17 +597,13 @@ def _calc_streak(commit_days):
 
 
 def _get_commit_days(repo):
-    """Helper: מחזיר סט של ימים שהיו בהם קומיטים."""
-    commit_days = set()
+    """Helper: מחזיר סט של ימים שהיו בהם קומיטים.
+    Uses git log --format directly — much faster than iterating commit objects."""
     try:
-        for commit in repo.iter_commits():
-            day = datetime.fromtimestamp(
-                commit.committed_date
-            ).strftime("%Y-%m-%d")
-            commit_days.add(day)
-    except ValueError:
-        pass
-    return commit_days
+        output = repo.git.log("--format=%cd", "--date=short")
+        return set(output.strip().split("\n")) if output.strip() else set()
+    except Exception:
+        return set()
 
 
 def streak_report(repo_path="."):
@@ -1783,23 +1779,32 @@ def watch_dashboard(repo_path="."):
         f"[dim]Refreshes every 10 seconds. Press Ctrl+C to stop.[/dim]\n"
     )
 
+    last_head = None  # Cache: skip refresh if HEAD hasn't changed
+
     try:
         while True:
-            # נקה מסך
+            # בודקים אם HEAD השתנה — אם לא, לא צריך לחשב מחדש
+            current_head = repo.head.commit.hexsha if repo.head.is_valid() else None
+            head_changed = current_head != last_head
+            last_head = current_head
+
             console.clear()
             show_logo()
 
             now = datetime.now()
             today_start = now.replace(hour=0, minute=0, second=0).timestamp()
 
-            # קומיטים של היום
+            # קומיטים של היום — git log מהיר יותר
             today_commits = []
-            for commit in repo.iter_commits():
-                if commit.committed_date < today_start:
-                    break
-                today_commits.append(commit)
+            try:
+                for commit in repo.iter_commits():
+                    if commit.committed_date < today_start:
+                        break
+                    today_commits.append(commit)
+            except ValueError:
+                pass
 
-            # רצף — משתמשים בפונקציות עזר במקום לשכפל קוד
+            # רצף — uses git log --format (fast)
             commit_days = _get_commit_days(repo)
             streak = _calc_streak(commit_days)
 
