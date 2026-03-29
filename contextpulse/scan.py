@@ -644,3 +644,160 @@ logo = true
     console.print()
     console.print("[dim]Tip: Add .pulserc to .gitignore if you don't want "
                   "to share your settings.[/dim]")
+
+
+def changelog_report(repo_path=".", output_path=None):
+    """
+    pulse changelog: יוצר changelog אוטומטי מקומיטים.
+    מקבץ לפי Added/Fixed/Changed/Removed לפי הודעת הקומיט.
+    אם output_path ניתן — שומר לקובץ. אחרת מדפיס לטרמינל.
+    """
+    from datetime import datetime
+    repo = Repo(repo_path)
+
+    # מילות מפתח → קטגוריית changelog
+    categories = {
+        "Added": ["add", "create", "implement", "new", "introduce", "support"],
+        "Fixed": ["fix", "resolve", "patch", "correct", "repair", "bug"],
+        "Changed": ["update", "change", "modify", "improve", "enhance",
+                     "refactor", "move", "rename", "upgrade", "bump"],
+        "Removed": ["remove", "delete", "drop", "deprecate", "clean"],
+    }
+
+    # אוספים קומיטים לפי tags (גרסאות)
+    tags = {}
+    for tag in repo.tags:
+        tags[tag.commit.hexsha] = str(tag)
+
+    sections = []
+    current_section = {"version": "Unreleased", "date": "", "commits": {
+        "Added": [], "Fixed": [], "Changed": [], "Removed": [], "Other": [],
+    }}
+
+    for commit in repo.iter_commits():
+        # בודקים אם זה tag (גרסה חדשה)
+        if commit.hexsha in tags:
+            if any(current_section["commits"][k] for k in current_section["commits"]):
+                sections.append(current_section)
+            date = datetime.fromtimestamp(commit.committed_date).strftime("%Y-%m-%d")
+            current_section = {
+                "version": tags[commit.hexsha],
+                "date": date,
+                "commits": {
+                    "Added": [], "Fixed": [], "Changed": [], "Removed": [], "Other": [],
+                },
+            }
+
+        msg = commit.message.strip().split("\n")[0]
+        # מדלגים על co-authored-by ודומים
+        if msg.lower().startswith("co-authored") or not msg:
+            continue
+
+        # מסווגים את הקומיט
+        classified = False
+        msg_lower = msg.lower()
+        for cat_name, keywords in categories.items():
+            if any(msg_lower.startswith(kw) for kw in keywords):
+                current_section["commits"][cat_name].append(msg)
+                classified = True
+                break
+        if not classified:
+            current_section["commits"]["Other"].append(msg)
+
+    # הוספת הסקשן האחרון
+    if any(current_section["commits"][k] for k in current_section["commits"]):
+        sections.append(current_section)
+
+    # === הצגה / שמירה ===
+    lines = ["# Changelog", ""]
+
+    for section in sections:
+        version = section["version"]
+        date = f" ({section['date']})" if section["date"] else ""
+        lines.append(f"## {version}{date}")
+        lines.append("")
+
+        for cat_name in ["Added", "Fixed", "Changed", "Removed", "Other"]:
+            commits = section["commits"][cat_name]
+            if commits:
+                lines.append(f"### {cat_name}")
+                for msg in commits:
+                    lines.append(f"- {msg}")
+                lines.append("")
+
+    content = "\n".join(lines)
+
+    if output_path:
+        Path(output_path).write_text(content, encoding="utf-8")
+        console.print(f"[green]Changelog saved to:[/green] {output_path}")
+    else:
+        console.print()
+        console.print(content)
+        console.print()
+
+
+def install_hook(repo_path="."):
+    """
+    pulse hook: מתקין git hook שמראה מיני-דוח אחרי כל commit.
+    יוצר קובץ .git/hooks/post-commit שמריץ pulse streak בקצרה.
+    """
+    from datetime import datetime
+    repo = Repo(repo_path)
+    hooks_dir = Path(repo_path) / ".git" / "hooks"
+
+    if not hooks_dir.exists():
+        console.print("[red]Error:[/red] Not a Git repository (no .git/hooks).")
+        return
+
+    hook_path = hooks_dir / "post-commit"
+
+    # בודקים אם כבר מותקן
+    if hook_path.exists():
+        existing = hook_path.read_text(encoding="utf-8")
+        if "contextpulse" in existing or "pulse" in existing.lower():
+            console.print("[yellow]Hook already installed![/yellow]")
+            console.print(f"File: {hook_path}")
+            return
+
+    hook_content = '''#!/bin/bash
+# ContextPulse post-commit hook
+# Shows a mini report after each commit
+
+# Count today's commits
+TODAY_COMMITS=$(git log --oneline --since="midnight" 2>/dev/null | wc -l | tr -d ' ')
+
+# Count streak days
+STREAK=0
+CHECK_DATE=$(date +%Y-%m-%d)
+while true; do
+    COUNT=$(git log --oneline --after="$CHECK_DATE 00:00" --before="$CHECK_DATE 23:59:59" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$COUNT" -gt "0" ]; then
+        STREAK=$((STREAK + 1))
+        CHECK_DATE=$(date -v-1d -j -f "%Y-%m-%d" "$CHECK_DATE" +%Y-%m-%d 2>/dev/null || date -d "$CHECK_DATE -1 day" +%Y-%m-%d 2>/dev/null)
+    else
+        break
+    fi
+done
+
+# Display
+echo ""
+if [ "$STREAK" -ge 7 ]; then
+    echo "  🔥 Commit #$TODAY_COMMITS today! Streak: $STREAK days 🔥"
+elif [ "$STREAK" -ge 3 ]; then
+    echo "  ✨ Commit #$TODAY_COMMITS today! Streak: $STREAK days"
+else
+    echo "  👍 Commit #$TODAY_COMMITS today | Streak: $STREAK days"
+fi
+echo ""
+'''
+
+    hook_path.write_text(hook_content, encoding="utf-8")
+    hook_path.chmod(0o755)
+
+    console.print("[green]Git hook installed![/green]")
+    console.print(f"File: {hook_path}")
+    console.print()
+    console.print("Now after every [cyan]git commit[/cyan], you'll see:")
+    console.print("  [dim]🔥 Commit #5 today! Streak: 12 days 🔥[/dim]")
+    console.print()
+    console.print("[dim]To remove: delete .git/hooks/post-commit[/dim]")

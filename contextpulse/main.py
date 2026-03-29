@@ -121,7 +121,7 @@ def main():
     parser.add_argument(
         "--version", "-v",
         action="version",
-        version="ContextPulse 1.1.0",
+        version="ContextPulse 1.2.0",
     )
     parser.add_argument(
         "--html",

@@ -11,11 +11,15 @@ from rich.prompt import Prompt, IntPrompt
 from .git_utils import get_commits
 from .reports import display_report
 from .export import export_markdown, export_json
-from .scan import scan_code, multi_report, init_config, learn_report
+from .scan import (
+    scan_code, multi_report, init_config, learn_report,
+    changelog_report, install_hook,
+)
 from .reports import (
     team_report, hours_report, vs_report, streak_report,
     pretty_log, trends_report, diff_report, blame_report,
     standup_report, id_report, commit_quality_report, code_age_report,
+    watch_dashboard,
 )
 from .ui import console, show_help
 
@@ -50,6 +54,9 @@ SHORTCUTS = {
     "id": None,
     "quality": None,
     "age": None,
+    "changelog": None,
+    "hook": None,
+    "watch": None,
     "help": None,
     # === Hebrew shortcuts ===
     "היום": ["--today"],
@@ -69,6 +76,9 @@ SHORTCUTS = {
     "זהות": None,
     "איכות": None,
     "גיל": None,
+    "שינויון": None,     # = changelog
+    "הוק": None,         # = hook
+    "צפייה": None,       # = watch
     "עזרה": None,
 }
 
@@ -91,7 +101,9 @@ def expand_shortcuts(argv):
         "מגמות": "trends", "רצף": "streak", "סריקה": "scan",
         "השוואה": "vs", "לוג": "log", "שינויים": "diff",
         "בעלות": "blame", "סטנדאפ": "standup", "זהות": "id",
-        "איכות": "quality", "גיל": "age", "עזרה": "help",
+        "איכות": "quality", "גיל": "age",
+        "שינויון": "changelog", "הוק": "hook", "צפייה": "watch",
+        "עזרה": "help",
     }
     if first in hebrew_to_english:
         first = hebrew_to_english[first]
@@ -367,6 +379,27 @@ def expand_shortcuts(argv):
     if first == "age":
         repo = argv[1] if len(argv) > 1 else "."
         code_age_report(repo)
+        return None
+
+    if first == "changelog":
+        repo = "."
+        output = None
+        for arg in argv[1:]:
+            if arg.endswith(".md"):
+                output = arg
+            else:
+                repo = arg
+        changelog_report(repo, output)
+        return None
+
+    if first == "hook":
+        repo = argv[1] if len(argv) > 1 else "."
+        install_hook(repo)
+        return None
+
+    if first == "watch":
+        repo = argv[1] if len(argv) > 1 else "."
+        watch_dashboard(repo)
         return None
 
     if first == "learn":

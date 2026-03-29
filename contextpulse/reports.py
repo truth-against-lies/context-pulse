@@ -1471,3 +1471,121 @@ def code_age_report(repo_path="."):
         f"({round(len(stale)/len(file_ages)*100)}%)"
     )
     console.print()
+
+
+def watch_dashboard(repo_path="."):
+    """
+    pulse watch: דשבורד חי שמתעדכן כל 10 שניות.
+    מראה: קומיטים של היום, רצף, קומיט אחרון, סטטיסטיקות.
+    Ctrl+C לעצור.
+    """
+    import time
+
+    repo = Repo(repo_path)
+    project_name = Path(repo_path).resolve().name
+
+    console.print(
+        f"[bold cyan]Watching:[/bold cyan] {project_name}\n"
+        f"[dim]Refreshes every 10 seconds. Press Ctrl+C to stop.[/dim]\n"
+    )
+
+    try:
+        while True:
+            # נקה מסך
+            console.clear()
+            show_logo()
+
+            now = datetime.now()
+            today_start = now.replace(hour=0, minute=0, second=0).timestamp()
+
+            # קומיטים של היום
+            today_commits = []
+            for commit in repo.iter_commits():
+                if commit.committed_date < today_start:
+                    break
+                today_commits.append(commit)
+
+            # רצף
+            commit_days = set()
+            for commit in repo.iter_commits():
+                day = datetime.fromtimestamp(
+                    commit.committed_date
+                ).strftime("%Y-%m-%d")
+                commit_days.add(day)
+
+            streak = 0
+            check = now
+            while True:
+                day_str = check.strftime("%Y-%m-%d")
+                if day_str in commit_days:
+                    streak += 1
+                    check = check.replace(
+                        hour=0, minute=0, second=0
+                    ) - _dt_module.timedelta(days=1)
+                else:
+                    if streak == 0 and day_str == now.strftime("%Y-%m-%d"):
+                        check = check.replace(
+                            hour=0, minute=0, second=0
+                        ) - _dt_module.timedelta(days=1)
+                        continue
+                    break
+
+            # קומיט אחרון
+            try:
+                last = next(repo.iter_commits())
+                last_msg = last.message.strip().split("\n")[0]
+                last_time = datetime.fromtimestamp(last.committed_date)
+                mins_ago = round((now - last_time).total_seconds() / 60)
+                if mins_ago < 60:
+                    ago_str = f"{mins_ago}m ago"
+                elif mins_ago < 1440:
+                    ago_str = f"{mins_ago // 60}h ago"
+                else:
+                    ago_str = f"{mins_ago // 1440}d ago"
+            except StopIteration:
+                last_msg = "—"
+                ago_str = "—"
+
+            # Fire icon
+            if streak >= 14:
+                fire = "🔥🔥"
+            elif streak >= 7:
+                fire = "🔥"
+            elif streak >= 1:
+                fire = "✨"
+            else:
+                fire = "💤"
+
+            # תצוגה
+            console.print(
+                Panel(
+                    f"[bold]{project_name}[/bold]  "
+                    f"[dim]{now.strftime('%H:%M:%S')}[/dim]\n\n"
+                    f"  Today: [{th('accent')}]{len(today_commits)} commits[/{th('accent')}]\n"
+                    f"  Streak: {fire} {streak} days\n"
+                    f"  Last: [dim]{last_msg}[/dim]\n"
+                    f"  [dim]({ago_str})[/dim]",
+                    title="Live Dashboard",
+                    border_style=th("border"),
+                )
+            )
+
+            # קומיטים של היום
+            if today_commits:
+                console.print()
+                console.print("[bold]Today's commits:[/bold]")
+                for c in today_commits[:10]:
+                    msg = c.message.strip().split("\n")[0]
+                    t_str = datetime.fromtimestamp(
+                        c.committed_date
+                    ).strftime("%H:%M")
+                    console.print(f"  [dim]{t_str}[/dim] {msg}")
+
+            console.print(
+                f"\n[dim]Watching... (Ctrl+C to stop)[/dim]"
+            )
+
+            time.sleep(10)
+
+    except KeyboardInterrupt:
+        console.print("\n[dim]Stopped watching.[/dim]")
