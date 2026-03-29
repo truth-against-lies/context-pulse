@@ -357,27 +357,8 @@ FILE_TYPE_TIPS = {
 }
 
 
-def bidi(text):
-    """Reorder Hebrew/RTL text for correct display in LTR terminals."""
-    if current_lang != "he":
-        return text
-    try:
-        from bidi.algorithm import get_display
-        return get_display(text)
-    except ImportError:
-        return text
-
-
 def t(key):
-    """Returns translated text with bidi for terminal display."""
-    text = TRANSLATIONS.get(current_lang, TRANSLATIONS["en"]).get(
-        key, TRANSLATIONS["en"].get(key, key)
-    )
-    return bidi(text)
-
-
-def t_raw(key):
-    """Returns translated text WITHOUT bidi — for building composite strings."""
+    """Returns translated text based on active language."""
     return TRANSLATIONS.get(current_lang, TRANSLATIONS["en"]).get(
         key, TRANSLATIONS["en"].get(key, key)
     )

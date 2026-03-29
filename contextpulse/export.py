@@ -230,8 +230,12 @@ def export_html(commits, period_label, output_path):
             f'title="{h:02d}:00 — {count} commits">{h}</div>\n'
         )
 
+    from . import config as _cfg
+    lang = _cfg.current_lang
+    direction = "rtl" if lang == "he" else "ltr"
+
     html = f"""<!DOCTYPE html>
-<html lang="en">
+<html lang="{lang}" dir="{direction}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">

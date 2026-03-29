@@ -11,7 +11,7 @@ from git import Repo
 from rich.panel import Panel
 from rich.table import Table
 
-from .config import CATEGORY_COLORS, get_category, t, t_raw, th, bidi
+from .config import CATEGORY_COLORS, get_category, t, th
 from .ui import console, show_logo
 
 
@@ -80,33 +80,33 @@ def generate_summary(commits, categories):
     messages = " ".join(c["message"].lower() for c in commits)
     activities = []
     if "fix" in messages:
-        activities.append(t_raw("bug_fixes"))
+        activities.append(t("bug_fixes"))
     if "add" in messages:
-        activities.append(t_raw("new_features"))
+        activities.append(t("new_features"))
     if "update" in messages or "improve" in messages:
-        activities.append(t_raw("improvements"))
+        activities.append(t("improvements"))
     if "refactor" in messages:
-        activities.append(t_raw("refactoring"))
+        activities.append(t("refactoring"))
     if "test" in messages:
-        activities.append(t_raw("testing"))
+        activities.append(t("testing"))
     if "doc" in messages or "readme" in messages:
-        activities.append(t_raw("documentation"))
+        activities.append(t("documentation"))
     if not activities:
-        activities.append(t_raw("various"))
+        activities.append(t("various"))
 
     activity_str = ", ".join(activities)
-    commit_word = "commit" if total_commits == 1 else t_raw("commits_word")
+    commit_word = "commit" if total_commits == 1 else t("commits_word")
     summary = (
-        f"{t_raw('you_made')} {total_commits} {commit_word}, "
-        f"{t_raw('focusing_on')} {top_cat} ({top_pct}%). "
-        f"{t_raw('main_activities')}: {activity_str}."
+        f"{t('you_made')} {total_commits} {commit_word}, "
+        f"{t('focusing_on')} {top_cat} ({top_pct}%). "
+        f"{t('main_activities')}: {activity_str}."
     )
 
     if len(sorted_cats) > 1:
         others = [c[0] for c in sorted_cats[1:3]]
-        summary += f" {t_raw('also_touched')}: {', '.join(others)}."
+        summary += f" {t('also_touched')}: {', '.join(others)}."
 
-    return bidi(summary)
+    return summary
 
 
 def display_activity_chart(commits):

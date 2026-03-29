@@ -246,6 +246,18 @@ def main():
         if args.webhook:
             send_webhook(commits, period_label, args.webhook)
 
+        # Hebrew auto-HTML: terminal can't display RTL properly,
+        # so auto-generate HTML report that opens in browser
+        if config.current_lang == "he" and not args.html:
+            import tempfile
+            import webbrowser
+            html_path = tempfile.mktemp(suffix=".html", prefix="pulse-he-")
+            export_html(commits, period_label, html_path)
+            console.print(
+                f"\n[dim]Hebrew report also opened in browser (RTL support)[/dim]"
+            )
+            webbrowser.open(f"file://{html_path}")
+
 
 if __name__ == "__main__":
     main()
